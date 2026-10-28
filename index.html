@@ -107,6 +107,16 @@
   th:first-child, td:first-child { text-align: left; }
   td.bad { color: var(--bad); font-weight: 600; }
   tr.grp td { background: var(--bg); color: var(--muted); font-weight: 500; font-size: 12px; text-transform: uppercase; letter-spacing: .06em; }
+  #compliance .hm-wrap { overflow-x: auto; }
+  table.hm { border-collapse: separate; border-spacing: 3px; width: auto; font-size: 12px; }
+  table.hm th { position: static; background: none; border: 0; padding: 2px 4px; color: var(--muted); font-weight: 500; text-align: center; white-space: nowrap; }
+  table.hm th.st { text-align: left; padding-right: 12px; color: var(--fg); font-weight: 400; }
+  table.hm td { min-width: 46px; height: 30px; text-align: center; border: 0; border-radius: 4px; padding: 0 4px; font-size: 11.5px; font-weight: 600; white-space: nowrap; }
+  table.hm td.grp { background: none; color: var(--muted); text-align: left; font-weight: 500; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; padding-top: 8px; }
+  table.hm td.none { background: var(--bg); color: var(--muted); font-weight: 400; }
+  .h0 { background: #2f8a57; color: #fff; } .h1 { background: #9cc46a; color: #17262b; } .h2 { background: #e8c547; color: #17262b; }
+  .h3 { background: #e58a3c; color: #fff; } .h4 { background: #c8412d; color: #fff; }
+  .hm-key { display: inline-block; width: 26px; height: 12px; border-radius: 3px; }
   footer { color: var(--muted); font-size: 12.5px; display: grid; gap: 4px; }
   .loading { color: var(--muted); }
 </style>
@@ -162,6 +172,24 @@
     </div>
     <p class="note">Average, minimum and maximum of every station reading in the chosen period. The small chart shows the last 12 periods: line for the average, band from minimum to maximum, dashed line for the standard. Click a tile to show it on the map.</p>
     <div class="tiles" id="tiles"></div>
+  </section>
+
+  <section class="card" id="compliance">
+    <div class="head">
+      <h2>Compliance by station and year</h2>
+      <p class="note">Share of each year's readings that were outside the standard. Hover over a cell for the count.</p>
+    </div>
+    <div class="chips" id="hm-chips" role="group" aria-label="Parameter for the compliance map"></div>
+    <div class="hm-wrap"><table class="hm" id="hm"></table></div>
+    <div class="legend">
+      <span><i class="hm-key h0"></i>0% (all within standard)</span>
+      <span><i class="hm-key h1"></i>1–25%</span>
+      <span><i class="hm-key h2"></i>26–50%</span>
+      <span><i class="hm-key h3"></i>51–75%</span>
+      <span><i class="hm-key h4"></i>76–100%</span>
+      <span><i class="hm-key" style="background: var(--bg); border: 1px solid var(--line);"></i>No readings</span>
+    </div>
+    <p class="note" id="hm-note"></p>
   </section>
 
   <section class="card" id="latest">
@@ -344,6 +372,50 @@
     }
     table.append(thead, tb);
   }
+
+  // Compliance heat map
+  const hmTable = document.getElementById('hm');
+  const hmChips = document.getElementById('hm-chips');
+  const hmYears = [...new Set(readings.map((r) => r.year))].sort((a, b) => a - b);
+  const bucket = (p) => (p === 0 ? 0 : p <= 0.25 ? 1 : p <= 0.5 ? 2 : p <= 0.75 ? 3 : 4);
+  let hmParam = 'fc';
+  for (const p of PARAMS) {
+    const b = el('button', {class: 'chip', 'data-hm': p, text: SHORT[p]});
+    b.addEventListener('click', () => { hmParam = p; renderHeat(); });
+    hmChips.append(b);
+  }
+  function renderHeat() {
+    hmChips.querySelectorAll('.chip').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.hm === hmParam)));
+    const cnt = {};
+    for (const r of readings) {
+      if (r.parameter !== hmParam) continue;
+      const s = statusOf(r); if (s === 'none') continue;
+      const k = r.station + '|' + r.year;
+      const c = cnt[k] || (cnt[k] = {n: 0, bad: 0});
+      c.n++; if (s === 'outside') c.bad++;
+    }
+    const ys = hmYears.filter((y) => stations.some((s) => cnt[s.station + '|' + y]));
+    const shown = stations.filter((s) => ys.some((y) => cnt[s.station + '|' + y]));
+    const body = []; let grp = '';
+    for (const s of shown) {
+      if (s.type !== grp) { grp = s.type; const g = el('td', {class: 'grp', text: grp + ' stations'}); g.colSpan = ys.length + 1; body.push(el('tr', {}, g)); }
+      const tr = el('tr', {}, el('th', {class: 'st', text: s.name}));
+      for (const y of ys) {
+        const c = cnt[s.station + '|' + y];
+        if (!c) { tr.append(el('td', {class: 'none', text: '–', title: s.name + ', ' + y + ': no readings'})); continue; }
+        const p = c.bad / c.n;
+        tr.append(el('td', {class: 'h' + bucket(p), text: Math.round(p * 100) + '%', title: s.name + ', ' + y + ': ' + c.bad + ' of ' + c.n + ' readings outside the standard'}));
+      }
+      body.push(tr);
+    }
+    hmTable.replaceChildren(el('thead', {}, el('tr', {}, el('th', {class: 'st', text: 'Station'}), ...ys.map((y) => el('th', {text: String(y)})))), el('tbody', {}, ...body));
+    const notes = ['Standard: ' + std[hmParam].standard + '.'];
+    if (ys.some((y) => y < 2020)) notes.push('Before 2020, sampling was quarterly, so those years have fewer readings.');
+    if (ys.includes(ly) && lm < 12) notes.push(ly + ' covers January to ' + ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'][lm - 1] + ' only.');
+    if (shown.length < stations.length) notes.push('Stations with no applicable standard or no readings are not listed.');
+    document.getElementById('hm-note').textContent = notes.join(' ');
+  }
+  renderHeat();
 
   function drawSpark(box, param, view, period) {
     box.replaceChildren();
