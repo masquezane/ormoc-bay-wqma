@@ -117,6 +117,22 @@
   .h0 { background: #2f8a57; color: #fff; } .h1 { background: #9cc46a; color: #17262b; } .h2 { background: #e8c547; color: #17262b; }
   .h3 { background: #e58a3c; color: #fff; } .h4 { background: #c8412d; color: #fff; }
   .hm-key { display: inline-block; width: 26px; height: 12px; border-radius: 3px; }
+  .toolbar { position: sticky; top: 0; z-index: 1000; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 10px 14px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); box-shadow: 0 2px 8px rgba(0,0,0,.08); }
+  .tb-label { font-size: 13px; font-weight: 600; }
+  .map-tools { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; justify-content: space-between; }
+  .toggle { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; cursor: pointer; user-select: none; white-space: nowrap; }
+  .toggle input { width: 16px; height: 16px; accent-color: var(--accent); margin: 0; }
+  .mkw { position: relative; width: 18px; height: 18px; }
+  .mkv { position: absolute; left: 22px; top: 0; background: var(--popover); color: var(--fg); border: 1px solid var(--line); border-radius: 4px; padding: 0 5px; font-size: 11px; font-weight: 600; line-height: 16px; white-space: nowrap; box-shadow: 0 1px 3px rgba(0,0,0,.2); }
+  .hist-head { display: flex; flex-wrap: wrap; gap: 2px 12px; align-items: baseline; }
+  .hist-head h4 { margin: 0; font-size: 14px; font-weight: 500; }
+  .hist { position: relative; min-height: 230px; }
+  .hist svg { display: block; overflow: visible; }
+  .hist .tick text { fill: var(--muted); font-size: 11px; }
+  .hist .tick line, .hist .domain { stroke: var(--line); }
+  .hist .lbl { fill: var(--muted); font-size: 11px; }
+  .hist-tip { position: absolute; pointer-events: none; background: var(--popover); color: var(--fg); border: 1px solid var(--line); border-radius: 6px; box-shadow: 0 4px 14px rgba(0,0,0,.15); font-size: 12px; padding: 5px 8px; white-space: nowrap; }
+  .hist-tip .k { color: var(--muted); }
   footer { color: var(--muted); font-size: 12.5px; display: grid; gap: 4px; }
   .loading { color: var(--muted); }
 </style>
@@ -129,12 +145,27 @@
     <p class="take" id="take"><span class="loading">Loading monitoring data…</span></p>
   </header>
 
+  <section class="toolbar" id="period-bar" aria-label="Period shown">
+    <span class="tb-label">Showing</span>
+    <div class="chips" role="group" aria-label="Period length">
+      <button class="chip" data-view="month">Month</button>
+      <button class="chip" data-view="quarter">Quarter</button>
+      <button class="chip" data-view="semester">Semester</button>
+      <button class="chip" data-view="year">Year</button>
+    </div>
+    <select id="period" aria-label="Period"></select>
+    <span class="note">The map, tiles and station table all follow this period.</span>
+  </section>
+
   <section class="card" id="map-view">
     <div class="head">
-      <h2>Map view · latest month</h2>
-      <p class="note">Each station's most recent monthly reading. Pick a parameter, then click a station for all its readings.</p>
+      <h2>Map view · <span id="map-period"></span></h2>
+      <p class="note">Each station's value for the chosen period, averaged when the period has more than one reading. Pick a parameter, then click a station to see its history.</p>
     </div>
-    <div class="chips" id="map-chips" role="group" aria-label="Parameter shown on the map"></div>
+    <div class="map-tools">
+      <div class="chips" id="map-chips" role="group" aria-label="Parameter shown on the map"></div>
+      <label class="toggle"><input type="checkbox" id="show-values"> Show values on map</label>
+    </div>
     <div class="map-grid">
       <div id="map" role="region" aria-label="Map of monitoring stations"></div>
       <div class="side">
@@ -152,6 +183,8 @@
     </div>
     <div class="station" id="station" hidden>
       <div class="station-head"><h3 id="st-name"></h3><button class="x" id="st-close">Close</button></div>
+      <div class="hist-head"><h4 id="hist-title"></h4><span class="note">Dashed line: standard. Red dots: outside the standard. Ringed dots: the period chosen above. Before 2020, sampling was quarterly.</span></div>
+      <div class="hist" id="hist"></div>
       <p class="note">All parameters, <span id="st-month"></span></p>
       <div class="st-grid" id="st-grid"></div>
     </div>
@@ -159,16 +192,7 @@
 
   <section class="params" id="parameters">
     <div class="head">
-      <h2>Parameters</h2>
-      <div class="controls">
-        <div class="chips" role="group" aria-label="Period length">
-          <button class="chip" data-view="month">Month</button>
-          <button class="chip" data-view="quarter">Quarter</button>
-          <button class="chip" data-view="semester">Semester</button>
-          <button class="chip" data-view="year">Year</button>
-        </div>
-        <select id="period" aria-label="Period"></select>
-      </div>
+      <h2>Parameters · <span id="tiles-period"></span></h2>
     </div>
     <p class="note">Average, minimum and maximum of every station reading in the chosen period. The small chart shows the last 12 periods: line for the average, band from minimum to maximum, dashed line for the standard. Click a tile to show it on the map.</p>
     <div class="tiles" id="tiles"></div>
@@ -194,8 +218,8 @@
 
   <section class="card" id="latest">
     <div class="head">
-      <h2>Latest readings by station</h2>
-      <p class="note">Values as recorded for <span id="tb-month"></span>. Red values are outside the standard.</p>
+      <h2>Readings by station · <span id="tb-month"></span></h2>
+      <p class="note" id="tb-note">Red values are outside the standard.</p>
     </div>
     <div class="table-box"><table id="table"></table></div>
   </section>
@@ -305,8 +329,6 @@
     const t = document.getElementById('take'); t.replaceChildren(
       'Latest sampling, ', el('b', {text: latestLabel}), ': ', el('b', {text: String(bad)}), ' of ', el('b', {text: String(n)}),
       ' station readings were outside the standard' + (worst ? ', most often for ' : '.'), ...(worst ? [el('b', {text: std[worst].name.toLowerCase()}), ' (' + per[worst] + ' of 14 stations).'] : []));
-    document.getElementById('st-month').textContent = latestLabel;
-    document.getElementById('tb-month').textContent = latestLabel;
     const up = new Date(idx.updated);
     document.getElementById('source').textContent = 'Source: ' + (idx.source || 'WQMA historical data file') + '. Data updated ' + (isNaN(up) ? idx.updated : up.toLocaleDateString('en-PH', {year: 'numeric', month: 'long', day: 'numeric'})) + '.';
   }
@@ -322,7 +344,7 @@
   const markers = {};
   for (const s of stations) {
     const m = L.marker([s.lat, s.lon], {keyboard: true, title: s.name}).addTo(map);
-    m.on('click', () => { state.station = state.station === s.station ? null : s.station; render(); });
+    m.on('click', () => { state.station = state.station === s.station ? null : s.station; render(); if (state.station) document.getElementById('station').scrollIntoView({behavior: 'smooth', block: 'nearest'}); });
     markers[s.station] = m;
   }
 
@@ -337,6 +359,27 @@
   const sel = document.getElementById('period');
   sel.addEventListener('change', () => { state.period = sel.value; render(); });
   document.getElementById('st-close').addEventListener('click', () => { state.station = null; render(); });
+  const showValues = document.getElementById('show-values');
+  showValues.addEventListener('change', render);
+
+  // Values for the chosen period: one reading as recorded, several averaged
+  const inPeriod = (r, view, period) => {
+    if (view === 'month') return !!r.month && (r.year + '-' + String(r.month).padStart(2, '0')) === period;
+    if (view === 'quarter') return (r.year + '-Q' + r.quarter) === period;
+    if (view === 'semester') return (r.year + '-S' + r.semester) === period;
+    return String(r.year) === period;
+  };
+  let cur = {};
+  function computeCurrent() {
+    cur = {};
+    for (const r of readings) {
+      if (!inPeriod(r, state.view, state.period)) continue;
+      const k = r.station + '|' + r.parameter;
+      const c = cur[k] || (cur[k] = {station: r.station, parameter: r.parameter, sum: 0, n: 0, raw: r.raw});
+      c.sum += r.value; c.n++;
+    }
+    for (const c of Object.values(cur)) { c.value = c.sum / c.n; if (c.n > 1) c.raw = fmt(c.value); }
+  }
 
   // Tiles skeleton
   const tilesBox = document.getElementById('tiles');
@@ -362,15 +405,84 @@
   const table = document.getElementById('table');
   {
     const thead = el('thead', {}, el('tr', {}, el('th', {text: 'Station'}), ...PARAMS.map((p) => el('th', {text: SHORT[p] === 'Dissolved oxygen' ? 'DO' : SHORT[p], title: std[p].name + (std[p].unit ? ' (' + std[p].unit + ')' : '')}))));
+    table.append(thead, el('tbody'));
+  }
+  function renderTable() {
     const tb = el('tbody');
     let grp = '';
     for (const s of stations) {
       if (s.type !== grp) { grp = s.type; tb.append(el('tr', {class: 'grp'}, Object.assign(el('td', {text: grp + ' stations'}), {colSpan: PARAMS.length + 1}))); }
       const tr = el('tr', {}, el('td', {text: s.name}));
-      for (const p of PARAMS) { const r = latest[s.station + '|' + p]; const td = el('td', {text: r ? r.raw : ''}); if (statusOf(r) === 'outside') td.className = 'bad'; tr.append(td); }
+      for (const p of PARAMS) { const r = cur[s.station + '|' + p]; const td = el('td', {text: r ? r.raw : ''}); if (r && r.n > 1) td.title = 'Average of ' + r.n + ' readings'; if (statusOf(r) === 'outside') td.className = 'bad'; tr.append(td); }
       tb.append(tr);
     }
-    table.append(thead, tb);
+    table.querySelector('tbody').replaceWith(tb);
+  }
+
+  // Station history chart
+  const histBox = document.getElementById('hist');
+  function drawHistory(station, param) {
+    histBox.replaceChildren();
+    const s = std[param], st = stations.find((d) => d.station === station);
+    document.getElementById('hist-title').textContent = s.name + (s.unit ? ' (' + s.unit + ')' : '') + ' at ' + st.name + ', all years';
+    const pts = readings.filter((r) => r.station === station && r.parameter === param)
+      .map((r) => ({r, d: new Date(Date.UTC(r.year, r.month ? r.month - 1 : (r.quarter - 1) * 3 + 1, 15))}))
+      .sort((a, b) => a.d - b.d);
+    if (!pts.length) { histBox.append(el('p', {class: 'empty', text: 'No ' + s.name.toLowerCase() + ' readings at this station.'})); return; }
+    const W = histBox.clientWidth || 600, H = 230, m = {t: 14, r: 14, b: 26};
+    const lims = limits(param, station).filter((v) => v !== null);
+    const vals = pts.map((p) => p.r.value);
+    const pos = vals.filter((v) => v > 0);
+    const hi = Math.max(d3.max(vals), ...lims.filter((l) => l < d3.max(vals) * 5));
+    const loPos = Math.min(d3.min(pos) || 1, ...lims.filter((l) => l > 0));
+    const useLog = pos.length > 1 && hi / loPos > 100;
+    const yv = (v) => (useLog ? Math.max(v, loPos / 2) : v);
+    const y = useLog ? d3.scaleLog([loPos / 2, hi * 1.2], [H - m.b, m.t]).clamp(true)
+      : d3.scaleLinear([Math.min(0, d3.min(vals), ...lims), hi], [H - m.b, m.t]).nice();
+    const yAxis = d3.axisLeft(y).ticks(5, useLog ? '~s' : '~r');
+    const probe = d3.select(histBox).append('svg').attr('width', 10).attr('height', 10);
+    const g0 = probe.append('g').call(yAxis);
+    let left = 0; g0.selectAll('text').each(function () { left = Math.max(left, this.getComputedTextLength()); });
+    probe.remove();
+    m.l = Math.ceil(left) + 14;
+    const x = d3.scaleUtc(d3.extent(pts, (p) => p.d), [m.l, W - m.r]);
+    const svg = d3.select(histBox).append('svg').attr('width', '100%').attr('height', H).attr('viewBox', '0 0 ' + W + ' ' + H)
+      .attr('role', 'img').attr('aria-label', s.name + ' history at ' + st.name);
+    const yrs = d3.utcYear.range(d3.utcYear.floor(x.domain()[0]), x.domain()[1]);
+    const every = Math.max(1, Math.ceil(yrs.length / Math.max(2, Math.floor((W - m.l) / 52))));
+    svg.append('g').attr('transform', 'translate(0,' + (H - m.b) + ')').call(d3.axisBottom(x).ticks(d3.utcYear.every(every)).tickFormat(d3.utcFormat('%Y'))).attr('font-size', null).attr('font-family', null);
+    svg.append('g').attr('transform', 'translate(' + m.l + ',0)').call(yAxis).attr('font-size', null).attr('font-family', null)
+      .call((g) => g.selectAll('.tick line').clone().attr('x2', W - m.l - m.r).attr('stroke', 'var(--line)').attr('stroke-opacity', 0.6));
+    for (const l of lims) {
+      svg.append('line').attr('x1', m.l).attr('x2', W - m.r).attr('y1', y(yv(l))).attr('y2', y(yv(l))).attr('stroke', 'var(--bad)').attr('stroke-width', 1.5).attr('stroke-dasharray', '5 4');
+      svg.append('text').attr('class', 'lbl').attr('x', W - m.r).attr('y', y(yv(l)) - 4).attr('text-anchor', 'end').text('Standard ' + fmt(l));
+    }
+    const segs = []; let segp = [];
+    for (const p of pts) { if (segp.length && p.d - segp[segp.length - 1].d > 200 * 864e5) { segs.push(segp); segp = []; } segp.push(p); }
+    segs.push(segp);
+    const line = d3.line().x((p) => x(p.d)).y((p) => y(yv(p.r.value)));
+    for (const sg of segs) svg.append('path').datum(sg).attr('fill', 'none').attr('stroke', 'var(--accent)').attr('stroke-width', 2).attr('stroke-linejoin', 'round').attr('stroke-linecap', 'round').attr('d', line);
+    svg.append('g').selectAll('circle').data(pts).join('circle').attr('cx', (p) => x(p.d)).attr('cy', (p) => y(yv(p.r.value)))
+      .attr('r', (p) => (inPeriod(p.r, state.view, state.period) ? 5 : 3))
+      .attr('fill', (p) => (statusOf(p.r) === 'outside' ? 'var(--bad)' : 'var(--accent)'))
+      .attr('stroke', (p) => (inPeriod(p.r, state.view, state.period) ? 'var(--fg)' : 'none')).attr('stroke-width', 2);
+    const tip = el('div', {class: 'hist-tip'}); tip.hidden = true; histBox.append(tip);
+    const dot = svg.append('circle').attr('r', 6).attr('fill', 'none').attr('stroke', 'var(--fg)').attr('stroke-width', 1.5).style('display', 'none');
+    svg.append('rect').attr('x', m.l).attr('y', m.t).attr('width', W - m.l - m.r).attr('height', H - m.t - m.b).attr('fill', 'transparent')
+      .on('mousemove', (e) => {
+        const [mx] = d3.pointer(e);
+        const t = x.invert(mx);
+        let best = pts[0]; for (const p of pts) if (Math.abs(p.d - t) < Math.abs(best.d - t)) best = p;
+        const r = best.r, cx = x(best.d), cy = y(yv(r.value));
+        dot.style('display', null).attr('cx', cx).attr('cy', cy);
+        const when = r.month ? MON[r.month - 1] + ' ' + r.year : 'Q' + r.quarter + ' ' + r.year;
+        const status = statusOf(r);
+        tip.replaceChildren(el('div', {class: 'k', text: when}), el('div', {text: r.raw + (s.unit ? ' ' + s.unit : '')}), el('div', {class: 'k', text: status === 'outside' ? 'Outside the standard' : status === 'within' ? 'Within the standard' : 'No standard applies'}));
+        tip.hidden = false;
+        const bw = histBox.clientWidth; let lx = cx * bw / W + 12; if (lx > bw - 150) lx = cx * bw / W - 150;
+        tip.style.left = lx + 'px'; tip.style.top = Math.max(0, cy - 10) + 'px';
+      })
+      .on('mouseleave', () => { tip.hidden = true; dot.style('display', 'none'); });
   }
 
   // Compliance heat map
@@ -444,20 +556,30 @@
     const p = state.mapParam, s = std[p];
     chips.querySelectorAll('.chip').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.param === p)));
     document.querySelectorAll('[data-view]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.view === state.view)));
+    const list = periodList(state.view);
+    if (!state.period || !periodsByView[state.view].has(state.period)) state.period = list[0].period;
+    sel.replaceChildren(...list.map((d) => new Option(d.label, d.period)));
+    sel.value = state.period;
+    computeCurrent();
+    const plabel = periodsByView[state.view].get(state.period).label + (state.view === 'month' ? '' : ' average');
+    for (const id of ['map-period', 'tiles-period', 'tb-month', 'st-month']) document.getElementById(id).textContent = plabel;
+    document.getElementById('tb-note').textContent = (state.view === 'month' ? 'Values as recorded.' : 'Each value is the average of the readings in the period; hover for the count.') + ' Red values are outside the standard.';
+    renderTable();
 
     // markers
     for (const st of stations) {
-      const r = latest[st.station + '|' + p];
+      const r = cur[st.station + '|' + p];
       const status = statusOf(r);
       const shape = st.type === 'Marine' ? 'dia' : 'cir';
-      markers[st.station].setIcon(L.divIcon({className: '', html: '<div class="mk ' + shape + ' ' + cls(status) + (state.station === st.station ? ' sel' : '') + '"></div>', iconSize: [18, 18], iconAnchor: [9, 9]}));
-      const tip = el('div', {}, el('div', {class: 'k', text: st.name + ' · ' + st.type.toLowerCase()}), el('div', {text: s.name + ': ' + (r ? r.raw + (s.unit ? ' ' + s.unit : '') : 'no reading')}),
+      const lab = showValues.checked && r ? '<span class="mkv">' + r.raw + '</span>' : '';
+      markers[st.station].setIcon(L.divIcon({className: '', html: '<div class="mkw"><div class="mk ' + shape + ' ' + cls(status) + (state.station === st.station ? ' sel' : '') + '"></div>' + lab + '</div>', iconSize: [18, 18], iconAnchor: [9, 9]}));
+      const tip = el('div', {}, el('div', {class: 'k', text: st.name + ' · ' + st.type.toLowerCase()}), el('div', {text: s.name + ': ' + (r ? r.raw + (s.unit ? ' ' + s.unit : '') + (r.n > 1 ? ' (average of ' + r.n + ')' : '') : 'no reading')}),
         el('div', {class: 'k', text: status === 'none' ? (r ? 'No standard applies' : 'Not sampled') : status === 'outside' ? 'Outside the standard' : 'Within the standard'}));
       markers[st.station].unbindTooltip().bindTooltip(tip, {className: 'tip', direction: 'top', offset: [0, -10]});
     }
 
     // ranked list
-    const rows = stations.map((st) => ({st, r: latest[st.station + '|' + p]}))
+    const rows = stations.map((st) => ({st, r: cur[st.station + '|' + p]}))
       .sort((a, b) => (!a.r) - (!b.r) || (b.r ? b.r.value : 0) - (a.r ? a.r.value : 0));
     const vals = rows.filter((d) => d.r).map((d) => d.r.value);
     const lims = rows.flatMap((d) => limits(p, d.st.station)).filter((v) => v !== null);
@@ -479,18 +601,15 @@
     if (state.station) {
       const st = stations.find((d) => d.station === state.station);
       document.getElementById('st-name').textContent = st.name + ' · ' + st.type.toLowerCase() + ' station';
+      drawHistory(st.station, p);
       document.getElementById('st-grid').replaceChildren(...PARAMS.map((q) => {
-        const r = latest[st.station + '|' + q], status = statusOf(r);
+        const r = cur[st.station + '|' + q], status = statusOf(r);
         return el('div', {class: 'st-cell'}, el('span', {class: 'p', text: std[q].name + (std[q].unit ? ' · ' + std[q].unit : '')}), el('span', {class: 'v', text: r ? r.raw : '—'}),
           el('span', {class: 's'}, el('i', {class: 'sw ' + cls(status)}), !r ? 'Not sampled' : status === 'none' ? 'No standard' : status === 'outside' ? 'Outside standard' : 'Within standard'));
       }));
     }
 
-    // period select + tiles
-    const list = periodList(state.view);
-    if (!state.period || !periodsByView[state.view].has(state.period)) state.period = list[0].period;
-    sel.replaceChildren(...list.map((d) => new Option(d.label, d.period)));
-    sel.value = state.period;
+    // tiles
     for (const q of PARAMS) {
       const t = tiles[q], g = stats.get(state.view + '|' + state.period + '|' + q);
       t.t.setAttribute('aria-pressed', String(q === p));
