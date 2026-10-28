@@ -133,6 +133,11 @@
   .hist .lbl { fill: var(--muted); font-size: 11px; }
   .hist-tip { position: absolute; pointer-events: none; background: var(--popover); color: var(--fg); border: 1px solid var(--line); border-radius: 6px; box-shadow: 0 4px 14px rgba(0,0,0,.15); font-size: 12px; padding: 5px 8px; white-space: nowrap; }
   .hist-tip .k { color: var(--muted); }
+  .tile-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+  .info-btn { font: inherit; font-size: 11.5px; color: var(--accent); background: none; border: 1px solid var(--line); border-radius: 999px; padding: 2px 9px; cursor: pointer; white-space: nowrap; flex: none; }
+  .info-btn:hover { border-color: var(--accent); }
+  .info-btn[aria-expanded="true"] { background: var(--accent); color: var(--panel); border-color: var(--accent); }
+  .info { margin: 0; font-size: 13px; line-height: 1.5; background: var(--bg); border-left: 3px solid var(--accent); padding: 8px 10px; border-radius: 4px; cursor: default; }
   footer { color: var(--muted); font-size: 12.5px; display: grid; gap: 4px; }
   .loading { color: var(--muted); }
 </style>
@@ -154,7 +159,13 @@
       <button class="chip" data-view="year">Year</button>
     </div>
     <select id="period" aria-label="Period"></select>
-    <span class="note">The map, tiles and station table all follow this period.</span>
+    <span class="tb-label">Stations</span>
+    <div class="chips" role="group" aria-label="Station type">
+      <button class="chip" data-group="all">All</button>
+      <button class="chip" data-group="Freshwater">Rivers (freshwater)</button>
+      <button class="chip" data-group="Marine">Coastal (marine)</button>
+    </div>
+    <span class="note">The map, tiles, heat map and station table all follow these choices.</span>
   </section>
 
   <section class="card" id="map-view">
@@ -236,6 +247,18 @@
 (async function () {
   const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   const SHORT = {temperature: 'Temperature', ph: 'pH', do: 'Dissolved oxygen', tss: 'TSS', color: 'True color', fc: 'Fecal coliform', bod: 'BOD', phosphate: 'Phosphate', nitrate: 'Nitrate', chloride: 'Chloride'};
+  const INFO = {
+    temperature: "How warm the water is. Warm water holds less oxygen, so unusually high temperatures can stress fish and other aquatic life. Warm discharges and loss of shade along riverbanks can raise it.",
+    ph: "How acidic or alkaline the water is, on a scale of 0 to 14 where 7 is neutral. Most fish and shellfish need water between 6.5 and 8.5; values outside that range can harm them and may point to pollution.",
+    do: "The oxygen dissolved in the water, which fish and other aquatic animals need to breathe. Higher is better. Levels below 5 mg/L usually mean sewage or other decaying waste is using up the oxygen.",
+    tss: "Soil, silt and other particles floating in the water that make it murky. High levels come from erosion, quarrying, construction and runoff after heavy rain; they block sunlight and can smother corals and fish habitats.",
+    color: "The colour of the water after particles are removed, mostly from dissolved plant material or waste. High values make water look brown or tea-coloured and can signal pollution from wastewater.",
+    fc: "Bacteria from human and animal waste. High levels mean sewage or manure is reaching the water, which makes it unsafe for swimming, bathing and gathering shellfish.",
+    bod: "How much oxygen bacteria use to break down organic waste such as sewage, food scraps and farm waste. Higher BOD means more waste in the water and less oxygen left for fish. Measured at river stations only.",
+    phosphate: "A nutrient from detergents, fertilizers and sewage. Too much feeds algae blooms that cloud the water and use up oxygen when they die off.",
+    nitrate: "A nutrient from fertilizers, animal waste and sewage. Like phosphate, too much feeds algae growth; very high levels also make water unsafe to drink.",
+    chloride: "Salt in the water. In rivers, high chloride usually means seawater is mixing in near the river mouth, especially at high tide, or that wastewater is entering. Measured at river stations only."
+  };
   const bust = '?v=' + Date.now().toString(36).slice(0, -4);
   const get = (f) => fetch(f + bust).then((r) => { if (!r.ok) throw new Error(f); return r.json(); });
 
@@ -293,13 +316,15 @@
   const periodsByView = {month: new Map(), quarter: new Map(), semester: new Map(), year: new Map()};
   const add = (view, period, label, order, r) => {
     periodsByView[view].set(period, {period, label, order});
-    const key = view + '|' + period + '|' + r.parameter;
+    for (const grp of ['all', stType[r.station]]) {
+    const key = grp + '|' + view + '|' + period + '|' + r.parameter;
     let g = stats.get(key);
-    if (!g) { g = {view, period, label, order, parameter: r.parameter, sum: 0, n: 0, min: Infinity, max: -Infinity, minSt: '', maxSt: '', fail: 0, checked: 0}; stats.set(key, g); }
+    if (!g) { g = {grp, view, period, label, order, parameter: r.parameter, sum: 0, n: 0, min: Infinity, max: -Infinity, minSt: '', maxSt: '', fail: 0, checked: 0}; stats.set(key, g); }
     g.sum += r.value; g.n++;
     if (r.value < g.min) { g.min = r.value; g.minSt = r.station; }
     if (r.value > g.max) { g.max = r.value; g.maxSt = r.station; }
     const s = statusOf(r); if (s !== 'none') { g.checked++; if (s === 'outside') g.fail++; }
+    }
   };
   for (const r of readings) {
     const y = r.year;
@@ -318,7 +343,7 @@
   for (const r of readings) if (r.year === ly && r.month === lm) latest[r.station + '|' + r.parameter] = r;
 
   // State
-  const state = {mapParam: 'fc', station: null, view: 'month', period: null};
+  const state = {mapParam: 'fc', station: null, view: 'month', period: null, group: 'all'};
   try { const h = location.hash.slice(1); if (PARAMS.includes(h)) state.mapParam = h; } catch (e) {}
 
   // Summary sentence
@@ -361,6 +386,12 @@
   document.getElementById('st-close').addEventListener('click', () => { state.station = null; render(); });
   const showValues = document.getElementById('show-values');
   showValues.addEventListener('change', render);
+  const inGroup = (s) => state.group === 'all' || s.type === state.group;
+  document.querySelectorAll('[data-group]').forEach((b) => b.addEventListener('click', () => {
+    state.group = b.dataset.group;
+    if (state.station && !inGroup(stations.find((d) => d.station === state.station))) state.station = null;
+    render(); renderHeat();
+  }));
 
   // Values for the chosen period: one reading as recorded, several averaged
   const inPeriod = (r, view, period) => {
@@ -388,8 +419,14 @@
     const s = std[p];
     const t = el('article', {class: 'tile', tabindex: '0', id: 'tile-' + p});
     const mean = el('b'), min = el('b'), minSt = el('span'), max = el('b'), maxSt = el('span'), fail = el('b'), n = el('b'), spark = el('div', {class: 'spark'});
+    const info = el('p', {class: 'info', id: 'info-' + p, text: INFO[p] || ''}); info.hidden = true;
+    const infoBtn = el('button', {class: 'info-btn', type: 'button', 'aria-expanded': 'false', 'aria-controls': 'info-' + p, text: 'What is this?'});
+    infoBtn.addEventListener('click', (e) => { e.stopPropagation(); info.hidden = !info.hidden; infoBtn.setAttribute('aria-expanded', String(!info.hidden)); });
+    infoBtn.addEventListener('keydown', (e) => e.stopPropagation());
+    info.addEventListener('click', (e) => e.stopPropagation());
     t.append(
-      el('div', {}, el('h3', {text: s.name}), el('div', {class: 'std', text: 'Standard: ' + s.standard})),
+      el('div', {class: 'tile-top'}, el('div', {}, el('h3', {text: s.name}), el('div', {class: 'std', text: 'Standard: ' + s.standard})), infoBtn),
+      info,
       el('div', {class: 'main'}, mean, ...(s.unit ? [el('span', {class: 'u', text: s.unit})] : []), el('span', {class: 'l', text: 'average'})),
       el('dl', {class: 'mm'}, el('div', {}, el('dt', {text: 'Minimum'}), el('dd', {}, min, minSt)), el('div', {}, el('dt', {text: 'Maximum'}), el('dd', {}, max, maxSt))),
       el('p', {class: 'fail'}, fail, ' of ', n, ' readings outside the standard'),
@@ -410,7 +447,7 @@
   function renderTable() {
     const tb = el('tbody');
     let grp = '';
-    for (const s of stations) {
+    for (const s of stations.filter(inGroup)) {
       if (s.type !== grp) { grp = s.type; tb.append(el('tr', {class: 'grp'}, Object.assign(el('td', {text: grp + ' stations'}), {colSpan: PARAMS.length + 1}))); }
       const tr = el('tr', {}, el('td', {text: s.name}));
       for (const p of PARAMS) { const r = cur[s.station + '|' + p]; const td = el('td', {text: r ? r.raw : ''}); if (r && r.n > 1) td.title = 'Average of ' + r.n + ' readings'; if (statusOf(r) === 'outside') td.className = 'bad'; tr.append(td); }
@@ -506,8 +543,9 @@
       const c = cnt[k] || (cnt[k] = {n: 0, bad: 0});
       c.n++; if (s === 'outside') c.bad++;
     }
-    const ys = hmYears.filter((y) => stations.some((s) => cnt[s.station + '|' + y]));
-    const shown = stations.filter((s) => ys.some((y) => cnt[s.station + '|' + y]));
+    const gs = stations.filter(inGroup);
+    const ys = hmYears.filter((y) => gs.some((s) => cnt[s.station + '|' + y]));
+    const shown = gs.filter((s) => ys.some((y) => cnt[s.station + '|' + y]));
     const body = []; let grp = '';
     for (const s of shown) {
       if (s.type !== grp) { grp = s.type; const g = el('td', {class: 'grp', text: grp + ' stations'}); g.colSpan = ys.length + 1; body.push(el('tr', {}, g)); }
@@ -524,14 +562,14 @@
     const notes = ['Standard: ' + std[hmParam].standard + '.'];
     if (ys.some((y) => y < 2020)) notes.push('Before 2020, sampling was quarterly, so those years have fewer readings.');
     if (ys.includes(ly) && lm < 12) notes.push(ly + ' covers January to ' + ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'][lm - 1] + ' only.');
-    if (shown.length < stations.length) notes.push('Stations with no applicable standard or no readings are not listed.');
+    if (shown.length < gs.length) notes.push('Stations with no applicable standard or no readings are not listed.');
     document.getElementById('hm-note').textContent = notes.join(' ');
   }
   renderHeat();
 
   function drawSpark(box, param, view, period) {
     box.replaceChildren();
-    const all = [...stats.values()].filter((g) => g.view === view && g.parameter === param).sort((a, b) => a.order - b.order);
+    const all = [...stats.values()].filter((g) => g.grp === state.group && g.view === view && g.parameter === param).sort((a, b) => a.order - b.order);
     const at = all.findIndex((g) => g.period === period);
     if (at < 0) return;
     const rows = all.slice(Math.max(0, at - 11), at + 1);
@@ -556,6 +594,7 @@
     const p = state.mapParam, s = std[p];
     chips.querySelectorAll('.chip').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.param === p)));
     document.querySelectorAll('[data-view]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.view === state.view)));
+    document.querySelectorAll('[data-group]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.group === state.group)));
     const list = periodList(state.view);
     if (!state.period || !periodsByView[state.view].has(state.period)) state.period = list[0].period;
     sel.replaceChildren(...list.map((d) => new Option(d.label, d.period)));
@@ -568,6 +607,8 @@
 
     // markers
     for (const st of stations) {
+      if (!inGroup(st)) { map.removeLayer(markers[st.station]); continue; }
+      if (!map.hasLayer(markers[st.station])) markers[st.station].addTo(map);
       const r = cur[st.station + '|' + p];
       const status = statusOf(r);
       const shape = st.type === 'Marine' ? 'dia' : 'cir';
@@ -579,7 +620,7 @@
     }
 
     // ranked list
-    const rows = stations.map((st) => ({st, r: cur[st.station + '|' + p]}))
+    const rows = stations.filter(inGroup).map((st) => ({st, r: cur[st.station + '|' + p]}))
       .sort((a, b) => (!a.r) - (!b.r) || (b.r ? b.r.value : 0) - (a.r ? a.r.value : 0));
     const vals = rows.filter((d) => d.r).map((d) => d.r.value);
     const lims = rows.flatMap((d) => limits(p, d.st.station)).filter((v) => v !== null);
@@ -611,7 +652,7 @@
 
     // tiles
     for (const q of PARAMS) {
-      const t = tiles[q], g = stats.get(state.view + '|' + state.period + '|' + q);
+      const t = tiles[q], g = stats.get(state.group + '|' + state.view + '|' + state.period + '|' + q);
       t.t.setAttribute('aria-pressed', String(q === p));
       t.mean.textContent = g ? fmt(g.sum / g.n) : '—';
       t.min.textContent = g ? fmt(g.min) : '—'; t.minSt.textContent = g ? stName[g.minSt] : 'No readings';
