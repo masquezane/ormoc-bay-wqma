@@ -138,6 +138,44 @@
   .info-btn:hover { border-color: var(--accent); }
   .info-btn[aria-expanded="true"] { background: var(--accent); color: var(--panel); border-color: var(--accent); }
   .info { margin: 0; font-size: 13px; line-height: 1.5; background: var(--bg); border-left: 3px solid var(--accent); padding: 8px 10px; border-radius: 4px; cursor: default; }
+  .tb-actions { margin-left: auto; display: flex; gap: 6px; flex-wrap: wrap; }
+  .act { font: inherit; font-size: 12.5px; border: 1px solid var(--line); background: var(--bg); color: var(--fg); border-radius: 6px; padding: 5px 10px; cursor: pointer; white-space: nowrap; }
+  .act:hover { border-color: var(--accent); color: var(--accent); }
+  .toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: var(--fg); color: var(--bg); padding: 8px 14px; border-radius: 6px; font-size: 13px; z-index: 2000; }
+  .chg { font-size: 12.5px; color: var(--muted); margin: 0; }
+  .chg b { font-weight: 600; }
+  .chg .bad-c { color: var(--bad); } .chg .good-c { color: var(--ok); } .chg .neu-c { color: var(--fg); }
+  .print-only { display: none; }
+  @media (max-width: 700px) {
+    .toolbar { position: static; padding: 10px 12px; }
+    .tb-actions { margin-left: 0; width: 100%; }
+    .act { flex: 1 1 auto; }
+    #map { height: 320px; }
+    .rrow { grid-template-columns: minmax(0, 7.5rem) minmax(0, 1fr) 4.4rem; }
+    .wrap { gap: 20px; padding-top: 18px; }
+    .card { padding: 14px; }
+    .head { flex-direction: column; align-items: flex-start; }
+    .hist { min-height: 200px; }
+  }
+  @media print {
+    @page { size: A4 landscape; margin: 10mm; }
+    :root { --bg: #ffffff; --panel: #ffffff; --fg: #111111; --muted: #444444; --line: #cccccc; --popover: #ffffff; color-scheme: light; }
+    * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    body { font-size: 11px; }
+    .toolbar, .chips, .toggle, .info-btn, .info, .x, .act, .leaflet-control-container, #compliance, .note, .take { display: none !important; }
+    .print-only { display: block; font-size: 12px; color: var(--fg); }
+    .wrap { max-width: none; padding: 0; gap: 8px; }
+    .card, .tile { box-shadow: none; break-inside: avoid; }
+    .map-grid { grid-template-columns: 1.6fr 1fr; }
+    #map { height: 330px; }
+    .tiles { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; }
+    .tile { padding: 8px; gap: 4px; }
+    .main b { font-size: 20px; }
+    .spark { display: none; }
+    #parameters, #latest { break-before: page; }
+    .table-box { max-height: none; overflow: visible; }
+    th { position: static; }
+  }
   footer { color: var(--muted); font-size: 12.5px; display: grid; gap: 4px; }
   .loading { color: var(--muted); }
 </style>
@@ -148,6 +186,7 @@
     <span class="eyebrow">DENR-EMB Region 8 · Ormoc Bay Water Quality Management Area</span>
     <h1>Ormoc Bay WQMA water quality</h1>
     <p class="take" id="take"><span class="loading">Loading monitoring data…</span></p>
+    <p class="print-only" id="print-head"></p>
   </header>
 
   <section class="toolbar" id="period-bar" aria-label="Period shown">
@@ -166,6 +205,11 @@
       <button class="chip" data-group="Marine">Coastal (marine)</button>
     </div>
     <span class="note">The map, tiles, heat map and station table all follow these choices.</span>
+    <div class="tb-actions">
+      <button class="act" id="copy-link" type="button">Copy link to this view</button>
+      <button class="act" id="print-view" type="button">Print / Save as PDF</button>
+      <button class="act" id="dl-all" type="button">Download all data (CSV)</button>
+    </div>
   </section>
 
   <section class="card" id="map-view">
@@ -230,6 +274,7 @@
   <section class="card" id="latest">
     <div class="head">
       <h2>Readings by station · <span id="tb-month"></span></h2>
+      <button class="act" id="dl-table" type="button">Download this table (CSV)</button>
       <p class="note" id="tb-note">Red values are outside the standard.</p>
     </div>
     <div class="table-box"><table id="table"></table></div>
@@ -346,7 +391,26 @@
 
   // State
   const state = {mapParam: 'fc', station: null, view: 'month', period: null, group: 'all'};
-  try { const h = location.hash.slice(1); if (PARAMS.includes(h)) state.mapParam = h; } catch (e) {}
+  try {
+    const h = decodeURIComponent(location.hash.slice(1));
+    if (PARAMS.includes(h)) state.mapParam = h;
+    else for (const kv of h.split('&')) {
+      const [k, v] = kv.split('='); if (!v) continue;
+      if (k === 'p' && PARAMS.includes(v)) state.mapParam = v;
+      if (k === 'v' && ['month', 'quarter', 'semester', 'year'].includes(v)) state.view = v;
+      if (k === 't') state.period = v;
+      if (k === 'g' && ['all', 'Freshwater', 'Marine'].includes(v)) state.group = v;
+      if (k === 's' && stations.some((s) => s.station === v)) state.station = v;
+    }
+  } catch (e) {}
+  const toast = (msg) => { const d = el('div', {class: 'toast', role: 'status', text: msg}); document.body.append(d); setTimeout(() => d.remove(), 2200); };
+  const csvCell = (v) => { const s = v === null || v === undefined ? '' : String(v); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
+  const download = (name, rows) => {
+    const text = '\ufeff' + rows.map((r) => r.map(csvCell).join(',')).join('\r\n');
+    const a = el('a', {href: URL.createObjectURL(new Blob([text], {type: 'text/csv;charset=utf-8'})), download: name});
+    document.body.append(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+  };
+  const GROUPS = {all: 'All stations', Freshwater: 'River (freshwater) stations', Marine: 'Coastal (marine) stations'};
 
   // Summary sentence
   {
@@ -379,7 +443,7 @@
   const chips = document.getElementById('map-chips');
   for (const p of PARAMS) {
     const b = el('button', {class: 'chip', 'data-param': p, text: SHORT[p]});
-    b.addEventListener('click', () => { state.mapParam = p; try { history.replaceState(null, '', '#' + p); } catch (e) {} render(); });
+    b.addEventListener('click', () => { state.mapParam = p; render(); });
     chips.append(b);
   }
   document.querySelectorAll('[data-view]').forEach((b) => b.addEventListener('click', () => { state.view = b.dataset.view; state.period = null; render(); }));
@@ -388,6 +452,24 @@
   document.getElementById('st-close').addEventListener('click', () => { state.station = null; render(); });
   const showValues = document.getElementById('show-values');
   showValues.addEventListener('change', render);
+  document.getElementById('copy-link').addEventListener('click', () => {
+    const url = location.href;
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(url).then(() => toast('Link copied. It opens this exact view.'), () => window.prompt('Copy this link:', url));
+    else window.prompt('Copy this link:', url);
+  });
+  document.getElementById('print-view').addEventListener('click', () => window.print());
+  document.getElementById('dl-all').addEventListener('click', () => {
+    const rows = [['year', 'month', 'quarter', 'station_id', 'station', 'station_type', 'parameter', 'value_as_recorded', 'unit', 'standard']];
+    const sorted = readings.slice().sort((a, b) => a.year - b.year || (a.month || a.quarter * 3) - (b.month || b.quarter * 3) || ST.indexOf(a.station) - ST.indexOf(b.station) || PARAMS.indexOf(a.parameter) - PARAMS.indexOf(b.parameter));
+    for (const r of sorted) rows.push([r.year, r.month ? MON[r.month - 1] : '', 'Q' + r.quarter, r.station, stName[r.station], stType[r.station], std[r.parameter].name, r.raw, std[r.parameter].unit, std[r.parameter].standard]);
+    download('ormoc-bay-wqma-readings.csv', rows);
+  });
+  document.getElementById('dl-table').addEventListener('click', () => {
+    const plabel = periodsByView[state.view].get(state.period).label;
+    const rows = [['period', 'station', 'station_type', ...PARAMS.map((q) => std[q].name + (std[q].unit ? ' (' + std[q].unit + ')' : ''))]];
+    for (const s of stations.filter(inGroup)) rows.push([plabel, s.name, s.type, ...PARAMS.map((q) => { const r = cur[s.station + '|' + q]; return r ? (r.n > 1 ? +r.value.toPrecision(4) : r.raw) : ''; })]);
+    download('ormoc-bay-wqma-' + state.period + '.csv', rows);
+  });
   const inGroup = (s) => state.group === 'all' || s.type === state.group;
   document.querySelectorAll('[data-group]').forEach((b) => b.addEventListener('click', () => {
     state.group = b.dataset.group;
@@ -420,7 +502,7 @@
   for (const p of PARAMS) {
     const s = std[p];
     const t = el('article', {class: 'tile', tabindex: '0', id: 'tile-' + p});
-    const mean = el('b'), min = el('b'), minSt = el('span'), max = el('b'), maxSt = el('span'), fail = el('b'), n = el('b'), spark = el('div', {class: 'spark'});
+    const mean = el('b'), min = el('b'), minSt = el('span'), max = el('b'), maxSt = el('span'), fail = el('b'), n = el('b'), spark = el('div', {class: 'spark'}), chg = el('p', {class: 'chg'});
     const info = el('p', {class: 'info', id: 'info-' + p, text: INFO[p] || ''}); info.hidden = true;
     const infoBtn = el('button', {class: 'info-btn', type: 'button', 'aria-expanded': 'false', 'aria-controls': 'info-' + p, text: 'What is this?'});
     infoBtn.addEventListener('click', (e) => { e.stopPropagation(); info.hidden = !info.hidden; infoBtn.setAttribute('aria-expanded', String(!info.hidden)); });
@@ -431,13 +513,14 @@
       info,
       el('div', {class: 'main'}, mean, ...(s.unit ? [el('span', {class: 'u', text: s.unit})] : []), el('span', {class: 'l', text: p === 'fc' ? 'geometric mean' : 'average'})),
       el('dl', {class: 'mm'}, el('div', {}, el('dt', {text: 'Minimum'}), el('dd', {}, min, minSt)), el('div', {}, el('dt', {text: 'Maximum'}), el('dd', {}, max, maxSt))),
+      chg,
       el('p', {class: 'fail'}, fail, ' of ', n, ' readings outside the standard'),
       spark);
     const pick = () => { state.mapParam = p; render(); document.getElementById('map-view').scrollIntoView({behavior: 'smooth', block: 'start'}); };
     t.addEventListener('click', pick);
     t.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pick(); } });
     tilesBox.append(t);
-    tiles[p] = {t, mean, min, minSt, max, maxSt, fail, n, spark};
+    tiles[p] = {t, mean, min, minSt, max, maxSt, fail, n, spark, chg};
   }
 
   // Table
@@ -661,8 +744,22 @@
       t.max.textContent = g ? fmt(g.max) : '—'; t.maxSt.textContent = g ? stName[g.maxSt] : 'No readings';
       t.fail.textContent = g ? String(g.fail) : '—'; t.fail.classList.toggle('bad', !!g && g.fail > 0);
       t.n.textContent = g ? String(g.checked) : '—';
+      const prevP = state.view === 'year' ? String(Number(state.period) - 1) : (Number(state.period.slice(0, 4)) - 1) + state.period.slice(4);
+      const prevInfo = periodsByView[state.view].get(prevP);
+      const gp = stats.get(state.group + '|' + state.view + '|' + prevP + '|' + q);
+      if (g && gp && avg(gp) > 0) {
+        const pct = (avg(g) - avg(gp)) / avg(gp) * 100;
+        const dir = q === 'do' ? 1 : (q === 'temperature' || q === 'ph') ? 0 : -1;
+        const flat = Math.abs(pct) < 0.5;
+        const c = flat || dir === 0 ? 'neu-c' : (pct > 0) === (dir > 0) ? 'good-c' : 'bad-c';
+        t.chg.replaceChildren(el('b', {class: c, text: flat ? '● no change' : (pct > 0 ? '▲ ' : '▼ ') + d3.format(',.0f')(Math.abs(pct)) + '%'}), ' vs ' + prevInfo.label + (c === 'good-c' ? ' (better)' : c === 'bad-c' ? ' (worse)' : ''));
+      } else t.chg.textContent = g ? 'No data for ' + (prevInfo ? prevInfo.label : 'the same period a year earlier') : '';
       drawSpark(t.spark, q, state.view, state.period);
     }
+    const plab = periodsByView[state.view].get(state.period).label + (state.view === 'month' ? '' : ' average');
+    document.getElementById('print-head').textContent = 'Ormoc Bay WQMA water quality · ' + std[p].name + ' on the map · ' + plab + ' · ' + GROUPS[state.group] + ' · printed ' + new Date().toLocaleDateString('en-PH', {year: 'numeric', month: 'long', day: 'numeric'}) + ' · masquezane.github.io/ormoc-bay-wqma';
+    const hash = 'p=' + state.mapParam + '&v=' + state.view + '&t=' + state.period + '&g=' + state.group + (state.station ? '&s=' + state.station : '');
+    try { history.replaceState(null, '', '#' + hash); } catch (e) {}
   }
   render();
   let rt; window.addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(render, 200); });
