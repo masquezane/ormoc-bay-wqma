@@ -171,7 +171,7 @@
   <section class="card" id="map-view">
     <div class="head">
       <h2>Map view · <span id="map-period"></span></h2>
-      <p class="note">Each station's value for the chosen period, averaged when the period has more than one reading. Pick a parameter, then click a station to see its history.</p>
+      <p class="note">Each station's value for the chosen period, averaged when the period has more than one reading (geometric mean for fecal coliform). Pick a parameter, then click a station to see its history.</p>
     </div>
     <div class="map-tools">
       <div class="chips" id="map-chips" role="group" aria-label="Parameter shown on the map"></div>
@@ -205,7 +205,7 @@
     <div class="head">
       <h2>Parameters · <span id="tiles-period"></span></h2>
     </div>
-    <p class="note">Average, minimum and maximum of every station reading in the chosen period. The small chart shows the last 12 periods: line for the average, band from minimum to maximum, dashed line for the standard. Click a tile to show it on the map.</p>
+    <p class="note">Average, minimum and maximum of every station reading in the chosen period. Fecal coliform uses the geometric mean, the usual way to summarise bacteria counts. The small chart shows the last 12 periods: line for the average, band from minimum to maximum, dashed line for the standard. Click a tile to show it on the map.</p>
     <div class="tiles" id="tiles"></div>
   </section>
 
@@ -314,13 +314,15 @@
   // Period statistics
   const stats = new Map();
   const periodsByView = {month: new Map(), quarter: new Map(), semester: new Map(), year: new Map()};
+  const flog = (v) => Math.log(v > 0 ? v : 1.8);
+  const avg = (g) => (g.parameter === 'fc' ? Math.exp(g.slog / g.n) : g.sum / g.n);
   const add = (view, period, label, order, r) => {
     periodsByView[view].set(period, {period, label, order});
     for (const grp of ['all', stType[r.station]]) {
     const key = grp + '|' + view + '|' + period + '|' + r.parameter;
     let g = stats.get(key);
     if (!g) { g = {grp, view, period, label, order, parameter: r.parameter, sum: 0, n: 0, min: Infinity, max: -Infinity, minSt: '', maxSt: '', fail: 0, checked: 0}; stats.set(key, g); }
-    g.sum += r.value; g.n++;
+    g.sum += r.value; g.slog = (g.slog || 0) + flog(r.value); g.n++;
     if (r.value < g.min) { g.min = r.value; g.minSt = r.station; }
     if (r.value > g.max) { g.max = r.value; g.maxSt = r.station; }
     const s = statusOf(r); if (s !== 'none') { g.checked++; if (s === 'outside') g.fail++; }
@@ -407,9 +409,9 @@
       if (!inPeriod(r, state.view, state.period)) continue;
       const k = r.station + '|' + r.parameter;
       const c = cur[k] || (cur[k] = {station: r.station, parameter: r.parameter, sum: 0, n: 0, raw: r.raw});
-      c.sum += r.value; c.n++;
+      c.sum += r.value; c.slog = (c.slog || 0) + flog(r.value); c.n++;
     }
-    for (const c of Object.values(cur)) { c.value = c.sum / c.n; if (c.n > 1) c.raw = fmt(c.value); }
+    for (const c of Object.values(cur)) { c.value = avg(c); if (c.n > 1) c.raw = fmt(c.value); }
   }
 
   // Tiles skeleton
@@ -427,7 +429,7 @@
     t.append(
       el('div', {class: 'tile-top'}, el('div', {}, el('h3', {text: s.name}), el('div', {class: 'std', text: 'Standard: ' + s.standard})), infoBtn),
       info,
-      el('div', {class: 'main'}, mean, ...(s.unit ? [el('span', {class: 'u', text: s.unit})] : []), el('span', {class: 'l', text: 'average'})),
+      el('div', {class: 'main'}, mean, ...(s.unit ? [el('span', {class: 'u', text: s.unit})] : []), el('span', {class: 'l', text: p === 'fc' ? 'geometric mean' : 'average'})),
       el('dl', {class: 'mm'}, el('div', {}, el('dt', {text: 'Minimum'}), el('dd', {}, min, minSt)), el('div', {}, el('dt', {text: 'Maximum'}), el('dd', {}, max, maxSt))),
       el('p', {class: 'fail'}, fail, ' of ', n, ' readings outside the standard'),
       spark);
@@ -450,7 +452,7 @@
     for (const s of stations.filter(inGroup)) {
       if (s.type !== grp) { grp = s.type; tb.append(el('tr', {class: 'grp'}, Object.assign(el('td', {text: grp + ' stations'}), {colSpan: PARAMS.length + 1}))); }
       const tr = el('tr', {}, el('td', {text: s.name}));
-      for (const p of PARAMS) { const r = cur[s.station + '|' + p]; const td = el('td', {text: r ? r.raw : ''}); if (r && r.n > 1) td.title = 'Average of ' + r.n + ' readings'; if (statusOf(r) === 'outside') td.className = 'bad'; tr.append(td); }
+      for (const p of PARAMS) { const r = cur[s.station + '|' + p]; const td = el('td', {text: r ? r.raw : ''}); if (r && r.n > 1) td.title = (p === 'fc' ? 'Geometric mean of ' : 'Average of ') + r.n + ' readings'; if (statusOf(r) === 'outside') td.className = 'bad'; tr.append(td); }
       tb.append(tr);
     }
     table.querySelector('tbody').replaceWith(tb);
@@ -584,9 +586,9 @@
     const svg = d3.select(box).append('svg').attr('width', '100%').attr('height', H).attr('viewBox', '0 0 ' + W + ' ' + H).attr('role', 'img').attr('aria-label', 'Trend over the last ' + rows.length + ' periods');
     svg.append('path').datum(rows).attr('fill', 'var(--accent)').attr('fill-opacity', 0.14).attr('d', d3.area().x((r) => x(r.period)).y0((r) => y(r.min)).y1((r) => y(r.max)));
     for (const l of shown) svg.append('line').attr('x1', pad).attr('x2', W - pad).attr('y1', y(l)).attr('y2', y(l)).attr('stroke', 'var(--ref)').attr('stroke-dasharray', '3 3');
-    svg.append('path').datum(rows).attr('fill', 'none').attr('stroke', 'var(--accent)').attr('stroke-width', 2).attr('stroke-linecap', 'round').attr('stroke-linejoin', 'round').attr('d', d3.line().x((r) => x(r.period)).y((r) => y(r.sum / r.n)));
+    svg.append('path').datum(rows).attr('fill', 'none').attr('stroke', 'var(--accent)').attr('stroke-width', 2).attr('stroke-linecap', 'round').attr('stroke-linejoin', 'round').attr('d', d3.line().x((r) => x(r.period)).y((r) => y(avg(r))));
     const last = rows[rows.length - 1];
-    svg.append('circle').attr('cx', x(last.period)).attr('cy', y(last.sum / last.n)).attr('r', 3.5).attr('fill', 'var(--accent)');
+    svg.append('circle').attr('cx', x(last.period)).attr('cy', y(avg(last))).attr('r', 3.5).attr('fill', 'var(--accent)');
     svg.append('title').text(rows[0].label + ' to ' + last.label);
   }
 
@@ -602,7 +604,7 @@
     computeCurrent();
     const plabel = periodsByView[state.view].get(state.period).label + (state.view === 'month' ? '' : ' average');
     for (const id of ['map-period', 'tiles-period', 'tb-month', 'st-month']) document.getElementById(id).textContent = plabel;
-    document.getElementById('tb-note').textContent = (state.view === 'month' ? 'Values as recorded.' : 'Each value is the average of the readings in the period; hover for the count.') + ' Red values are outside the standard.';
+    document.getElementById('tb-note').textContent = (state.view === 'month' ? 'Values as recorded.' : 'Each value is the average of the readings in the period (geometric mean for fecal coliform); hover for the count.') + ' Red values are outside the standard.';
     renderTable();
 
     // markers
@@ -614,7 +616,7 @@
       const shape = st.type === 'Marine' ? 'dia' : 'cir';
       const lab = showValues.checked && r ? '<span class="mkv">' + r.raw + '</span>' : '';
       markers[st.station].setIcon(L.divIcon({className: '', html: '<div class="mkw"><div class="mk ' + shape + ' ' + cls(status) + (state.station === st.station ? ' sel' : '') + '"></div>' + lab + '</div>', iconSize: [18, 18], iconAnchor: [9, 9]}));
-      const tip = el('div', {}, el('div', {class: 'k', text: st.name + ' · ' + st.type.toLowerCase()}), el('div', {text: s.name + ': ' + (r ? r.raw + (s.unit ? ' ' + s.unit : '') + (r.n > 1 ? ' (average of ' + r.n + ')' : '') : 'no reading')}),
+      const tip = el('div', {}, el('div', {class: 'k', text: st.name + ' · ' + st.type.toLowerCase()}), el('div', {text: s.name + ': ' + (r ? r.raw + (s.unit ? ' ' + s.unit : '') + (r.n > 1 ? (p === 'fc' ? ' (geometric mean of ' : ' (average of ') + r.n + ')' : '') : 'no reading')}),
         el('div', {class: 'k', text: status === 'none' ? (r ? 'No standard applies' : 'Not sampled') : status === 'outside' ? 'Outside the standard' : 'Within the standard'}));
       markers[st.station].unbindTooltip().bindTooltip(tip, {className: 'tip', direction: 'top', offset: [0, -10]});
     }
@@ -654,7 +656,7 @@
     for (const q of PARAMS) {
       const t = tiles[q], g = stats.get(state.group + '|' + state.view + '|' + state.period + '|' + q);
       t.t.setAttribute('aria-pressed', String(q === p));
-      t.mean.textContent = g ? fmt(g.sum / g.n) : '—';
+      t.mean.textContent = g ? fmt(avg(g)) : '—';
       t.min.textContent = g ? fmt(g.min) : '—'; t.minSt.textContent = g ? stName[g.minSt] : 'No readings';
       t.max.textContent = g ? fmt(g.max) : '—'; t.maxSt.textContent = g ? stName[g.maxSt] : 'No readings';
       t.fail.textContent = g ? String(g.fail) : '—'; t.fail.classList.toggle('bad', !!g && g.fail > 0);
