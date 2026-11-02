@@ -11,6 +11,16 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<script>
+  /* Password screen. Only a SHA-256 fingerprint of the password is stored here, not the password itself. */
+  (function () {
+    var KEY = 'wqma-pass';
+    window.WQMA_PASS_HASH = 'c500c648f9e8e048d5f6dc9af874f22e8f88dc165017edc821cd8de28b726067';
+    var ok = false;
+    try { ok = localStorage.getItem(KEY) === window.WQMA_PASS_HASH || sessionStorage.getItem(KEY) === window.WQMA_PASS_HASH; } catch (e) {}
+    if (!ok) document.documentElement.classList.add('locked');
+  })();
+</script>
 <style>
   /* Layout: one centered column; map card, tile grid, table. */
   :root {
@@ -178,11 +188,38 @@
     .table-box { max-height: none; overflow: visible; }
     th { position: static; }
   }
+  /* Password screen */
+  html.locked .wrap { display: none; }
+  #gate { display: none; min-height: 100vh; place-items: center; padding: 24px 16px; }
+  html.locked #gate { display: grid; }
+  .gate-card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); padding: 28px 26px; width: min(380px, 100%); display: grid; gap: 14px; box-shadow: 0 1px 3px rgba(0,0,0,.06); }
+  .gate-card h1 { font: 600 22px/1.25 var(--serif); margin: 0; }
+  .gate-card p { margin: 0; color: var(--muted); font-size: 13.5px; }
+  .gate-card label { font-size: 13px; font-weight: 500; display: grid; gap: 6px; }
+  .gate-card input[type=password] { font: inherit; padding: 9px 11px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--fg); }
+  .gate-card input[type=password]:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .gate-card .rem { display: flex; align-items: center; gap: 8px; font-weight: 400; color: var(--muted); }
+  .gate-card button { font: 600 14px var(--sans); padding: 10px; border: 0; border-radius: 6px; background: var(--accent); color: #fff; cursor: pointer; }
+  .gate-card button:disabled { opacity: .6; cursor: default; }
+  .gate-err { color: var(--bad) !important; min-height: 1.2em; }
+  .signout { background: none; border: 0; padding: 0; font: inherit; color: var(--accent); text-decoration: underline; cursor: pointer; }
+  @media print { html.locked body { display: none; } .signout-p { display: none; } }
   footer { color: var(--muted); font-size: 12.5px; display: grid; gap: 4px; }
   .loading { color: var(--muted); }
 </style>
 </head>
 <body>
+<div id="gate">
+  <form class="gate-card" id="gate-form" autocomplete="off">
+    <span class="eyebrow">DENR-EMB Region 8 · Ormoc Bay WQMA</span>
+    <h1>Ormoc Bay WQMA water quality</h1>
+    <p>This dashboard is for authorized users. Enter the password to continue.</p>
+    <label>Password<input type="password" id="gate-pw" required autofocus></label>
+    <label class="rem"><input type="checkbox" id="gate-rem" checked> Keep me signed in on this device</label>
+    <button type="submit" id="gate-btn">Open dashboard</button>
+    <p class="gate-err" id="gate-err" role="alert"></p>
+  </form>
+</div>
 <div class="wrap">
   <header>
     <span class="eyebrow">DENR-EMB Region 8 · Ormoc Bay Water Quality Management Area</span>
@@ -285,13 +322,41 @@
   <footer>
     <p>Standards: DAO 2016-08, Class C (freshwater) and Class SC (marine), as listed in the WQMA historical data file. Cells marked ND or left blank in the file are not shown.</p>
     <p id="source"></p>
+    <p class="signout-p"><button type="button" class="signout" id="signout">Sign out</button></p>
   </footer>
 </div>
 
+<script>
+  window.WQMA_UNLOCKED = new Promise(function (resolve) {
+    var KEY = 'wqma-pass', root = document.documentElement;
+    document.getElementById('signout').addEventListener('click', function () {
+      try { localStorage.removeItem(KEY); sessionStorage.removeItem(KEY); } catch (e) {}
+      location.reload();
+    });
+    if (!root.classList.contains('locked')) { resolve(); return; }
+    var form = document.getElementById('gate-form'), pw = document.getElementById('gate-pw'),
+        err = document.getElementById('gate-err'), btn = document.getElementById('gate-btn');
+    function hex(buf) { return Array.prototype.map.call(new Uint8Array(buf), function (b) { return ('0' + b.toString(16)).slice(-2); }).join(''); }
+    form.addEventListener('submit', function (ev) {
+      ev.preventDefault();
+      err.textContent = ''; btn.disabled = true;
+      if (!(window.crypto && crypto.subtle)) { err.textContent = 'This browser cannot check the password. Open the dashboard in an up-to-date browser.'; btn.disabled = false; return; }
+      crypto.subtle.digest('SHA-256', new TextEncoder().encode(pw.value)).then(function (buf) {
+        btn.disabled = false;
+        if (hex(buf) !== window.WQMA_PASS_HASH) { err.textContent = 'Incorrect password. Please try again.'; pw.select(); return; }
+        try { (document.getElementById('gate-rem').checked ? localStorage : sessionStorage).setItem(KEY, window.WQMA_PASS_HASH); } catch (e) {}
+        pw.value = '';
+        root.classList.remove('locked');
+        resolve();
+      });
+    });
+  });
+</script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script>
 (async function () {
+  await window.WQMA_UNLOCKED;
   const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   const SHORT = {temperature: 'Temperature', ph: 'pH', do: 'Dissolved oxygen', tss: 'TSS', color: 'True color', fc: 'Fecal coliform', bod: 'BOD', phosphate: 'Phosphate', nitrate: 'Nitrate', chloride: 'Chloride'};
   const INFO = {
