@@ -143,6 +143,10 @@
   .hist .lbl { fill: var(--muted); font-size: 11px; }
   .hist-tip { position: absolute; pointer-events: none; background: var(--popover); color: var(--fg); border: 1px solid var(--line); border-radius: 6px; box-shadow: 0 4px 14px rgba(0,0,0,.15); font-size: 12px; padding: 5px 8px; white-space: nowrap; }
   .hist-tip .k { color: var(--muted); }
+  .trend-btn { margin-left: auto; font-size: 12.5px; padding: 4px 11px; }
+  .trend-note { font-size: 13px; color: var(--fg); margin: 2px 0 0; line-height: 1.45; }
+  .trend-note .weak { color: var(--muted); }
+  @media print { .trend-btn { display: none !important; } }
   .tile-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
   .info-btn { font: inherit; font-size: 11.5px; color: var(--accent); background: none; border: 1px solid var(--line); border-radius: 999px; padding: 2px 9px; cursor: pointer; white-space: nowrap; flex: none; }
   .info-btn:hover { border-color: var(--accent); }
@@ -277,8 +281,9 @@
     </div>
     <div class="station" id="station" hidden>
       <div class="station-head"><h3 id="st-name"></h3><button class="x" id="st-close">Close</button></div>
-      <div class="hist-head"><h4 id="hist-title"></h4><span class="note">Dashed line: standard. Red dots: outside the standard. Ringed dots: the period chosen above. Before 2020, sampling was quarterly.</span></div>
+      <div class="hist-head"><h4 id="hist-title"></h4><span class="note">Dashed line: standard. Red dots: outside the standard. Ringed dots: the period chosen above. Before 2020, sampling was quarterly.</span><button class="chip trend-btn" id="trend-btn" type="button" aria-pressed="false">Show trend</button></div>
       <div class="hist" id="hist"></div>
+      <p class="chg trend-note" id="trend-note" hidden></p>
       <p class="note">All parameters, <span id="st-month"></span></p>
       <div class="st-grid" id="st-grid"></div>
     </div>
@@ -610,8 +615,17 @@
 
   // Station history chart
   const histBox = document.getElementById('hist');
+  const trendBtn = document.getElementById('trend-btn'), trendNote = document.getElementById('trend-note');
+  let showTrend = false;
+  trendBtn.addEventListener('click', () => {
+    showTrend = !showTrend;
+    if (state.station) drawHistory(state.station, state.mapParam);
+  });
   function drawHistory(station, param) {
     histBox.replaceChildren();
+    trendBtn.setAttribute('aria-pressed', String(showTrend));
+    trendBtn.textContent = showTrend ? 'Hide trend' : 'Show trend';
+    trendNote.hidden = true; trendNote.replaceChildren();
     const s = std[param], st = stations.find((d) => d.station === station);
     document.getElementById('hist-title').textContent = s.name + (s.unit ? ' (' + s.unit + ')' : '') + ' at ' + st.name + ', all years';
     const pts = readings.filter((r) => r.station === station && r.parameter === param)
@@ -655,6 +669,7 @@
       .attr('r', (p) => (inPeriod(p.r, state.view, state.period) ? 5 : 3))
       .attr('fill', (p) => (statusOf(p.r) === 'outside' ? 'var(--bad)' : 'var(--accent)'))
       .attr('stroke', (p) => (inPeriod(p.r, state.view, state.period) ? 'var(--fg)' : 'none')).attr('stroke-width', 2);
+    if (showTrend) drawTrend(svg, pts, x, y, yv, useLog, m, W, H, s, param);
     const tip = el('div', {class: 'hist-tip'}); tip.hidden = true; histBox.append(tip);
     const dot = svg.append('circle').attr('r', 6).attr('fill', 'none').attr('stroke', 'var(--fg)').attr('stroke-width', 1.5).style('display', 'none');
     svg.append('rect').attr('x', m.l).attr('y', m.t).attr('width', W - m.l - m.r).attr('height', H - m.t - m.b).attr('fill', 'transparent')
@@ -672,6 +687,48 @@
         tip.style.left = lx + 'px'; tip.style.top = Math.max(0, cy - 10) + 'px';
       })
       .on('mouseleave', () => { tip.hidden = true; dot.style('display', 'none'); });
+  }
+
+  // Trend line: least-squares straight line through all readings at the station.
+  // Fitted on the log scale when the chart uses a log axis (e.g. fecal coliform), so the line is straight on the chart.
+  function drawTrend(svg, pts, x, y, yv, useLog, m, W, H, s, param) {
+    const YR = 365.25 * 864e5;
+    const xs = pts.map((p) => p.d.getTime() / YR);
+    const ys = pts.map((p) => (useLog ? Math.log10(yv(p.r.value)) : p.r.value));
+    const n = xs.length, mx = d3.mean(xs), my = d3.mean(ys);
+    let sxx = 0, sxy = 0;
+    for (let i = 0; i < n; i++) { sxx += (xs[i] - mx) ** 2; sxy += (xs[i] - mx) * (ys[i] - my); }
+    trendNote.hidden = false;
+    if (n < 4 || xs[n - 1] - xs[0] < 1 || sxx === 0) {
+      trendNote.textContent = 'Not enough readings spread over time to draw a trend line for this station.';
+      return;
+    }
+    const b = sxy / sxx, a = my - b * mx;
+    let sse = 0; for (let i = 0; i < n; i++) sse += (ys[i] - (a + b * xs[i])) ** 2;
+    const se = Math.sqrt(sse / (n - 2) / sxx);
+    const clear = se === 0 || Math.abs(b / se) >= 2;
+    const at = (d) => { const v = a + b * (d.getTime() / YR); return useLog ? Math.pow(10, v) : v; };
+    const [d0, d1] = x.domain();
+    const cid = 'trend-clip';
+    svg.append('clipPath').attr('id', cid).append('rect').attr('x', m.l).attr('y', m.t).attr('width', W - m.l - m.r).attr('height', H - m.t - m.b);
+    svg.append('line').attr('clip-path', 'url(#' + cid + ')')
+      .attr('x1', x(d0)).attr('y1', y(yv(Math.max(at(d0), useLog ? 0 : -Infinity)))).attr('x2', x(d1)).attr('y2', y(yv(at(d1))))
+      .attr('stroke', 'var(--fg)').attr('stroke-width', 2.5).attr('stroke-opacity', 0.85).attr('stroke-dasharray', clear ? null : '8 5')
+      .attr('pointer-events', 'none');
+    const v0 = at(d0), v1 = at(d1), u = s.unit ? ' ' + s.unit : '';
+    const up = b > 0;
+    const dir = param === 'do' ? 1 : (param === 'temperature' || param === 'ph') ? 0 : -1;
+    const cls = dir === 0 ? 'neu-c' : (up === (dir > 0)) ? 'good-c' : 'bad-c';
+    const rate = useLog ? (up ? '+' : '−') + d3.format('.2~r')(Math.abs(Math.pow(10, b) - 1) * 100) + '% per year'
+      : (up ? '+' : '−') + fmt(Math.abs(b)) + u + ' per year';
+    const yr0 = d0.getUTCFullYear(), yr1 = d1.getUTCFullYear();
+    const parts = [el('b', {class: cls, text: (up ? '▲ Increasing' : '▼ Decreasing') + ' over time'}),
+      ' (' + rate + (cls === 'good-c' ? ', better' : cls === 'bad-c' ? ', worse' : '') + '). ',
+      'The trend line goes from about ' + fmt(Math.max(v0, 0)) + u + ' in ' + yr0 + ' to about ' + fmt(Math.max(v1, 0)) + u + ' in ' + yr1 + '. '];
+    parts.push(el('span', {class: 'weak', text: clear
+      ? 'The change is large compared with the ups and downs between readings, so the trend is clear.'
+      : 'Readings go up and down a lot around this line, so the trend is weak and may not be real (shown dashed).'}));
+    trendNote.replaceChildren(...parts);
   }
 
   // Compliance heat map
