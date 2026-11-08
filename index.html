@@ -192,6 +192,11 @@
     .table-box { max-height: none; overflow: visible; }
     th { position: static; }
   }
+  /* Member LGU boundaries */
+  .map-toggles { display: flex; flex-wrap: wrap; gap: 6px 16px; align-items: center; }
+  .lgu-lbl { pointer-events: none; }
+  .lgu-lbl span { position: absolute; transform: translate(-50%, -50%); white-space: nowrap; font: 600 11px/1.2 var(--sans); color: #4b2f8f; letter-spacing: .02em; text-shadow: 0 0 3px #fff, 0 0 3px #fff, 0 0 2px #fff; }
+  .lgu-key { display: inline-block; width: 16px; height: 10px; border: 1.5px dashed #6d4bb3; background: rgba(109, 75, 179, .08); }
   /* Tabs */
   .toolbar { min-width: 0; }
   .tabs { flex: 1 1 100%; min-width: 0; width: 100%; display: flex; gap: 2px; overflow-x: auto; border-bottom: 1px solid var(--line); margin: -2px 0 2px; scrollbar-width: thin; }
@@ -296,7 +301,10 @@
     </div>
     <div class="map-tools">
       <div class="chips" id="map-chips" role="group" aria-label="Parameter shown on the map"></div>
-      <label class="toggle"><input type="checkbox" id="show-values"> Show values on map</label>
+      <div class="map-toggles">
+        <label class="toggle"><input type="checkbox" id="show-values"> Show values on map</label>
+        <label class="toggle"><input type="checkbox" id="show-lgu" checked> Member LGU boundaries</label>
+      </div>
     </div>
     <div class="map-grid">
       <div id="map" role="region" aria-label="Map of monitoring stations"></div>
@@ -312,6 +320,7 @@
       <span><i class="sw na-bg"></i>No standard or no reading</span>
       <span><i class="sw cir"></i>Freshwater station</span>
       <span><i class="sw dia"></i>Marine station</span>
+      <span><i class="lgu-key"></i>Member LGU boundary</span>
     </div>
   </section>
 
@@ -569,8 +578,25 @@
   const streets = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom: 18, attribution: '&copy; OpenStreetMap contributors'});
   const sat = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {maxZoom: 18, attribution: 'Imagery &copy; Esri'});
   streets.addTo(map);
-  L.control.layers({'Streets': streets, 'Satellite': sat}, null, {position: 'topright'}).addTo(map);
+  const layersCtl = L.control.layers({'Streets': streets, 'Satellite': sat}, null, {position: 'topright'}).addTo(map);
   L.control.scale({imperial: false}).addTo(map);
+  // Member LGU boundaries of the WQMA (PSGC city/municipal polygons in lgu-boundaries.json).
+  // Toggled from the checkbox above the map or from the layers button; both stay in sync.
+  map.createPane('lguLabels').style.zIndex = 450;
+  const lguBox = document.getElementById('show-lgu');
+  const lguLayer = L.layerGroup();
+  layersCtl.addOverlay(lguLayer, 'Member LGU boundaries');
+  const setLgu = (on) => { if (on) lguLayer.addTo(map); else map.removeLayer(lguLayer); };
+  lguBox.addEventListener('change', () => setLgu(lguBox.checked));
+  map.on('overlayadd overlayremove', (e) => { if (e.layer === lguLayer) lguBox.checked = e.type === 'overlayadd'; });
+  fetch('lgu-boundaries.json' + bust).then((r) => (r.ok ? r.json() : Promise.reject(new Error('lgu')))).then((g) => {
+    L.geoJSON(g, {interactive: false, style: {color: '#6d4bb3', weight: 2.2, opacity: 0.95, dashArray: '6 4', fillColor: '#6d4bb3', fillOpacity: 0.07}}).addTo(lguLayer);
+    for (const f of g.features) {
+      const c = L.geoJSON(f).getBounds().getCenter();
+      L.marker(c, {pane: 'lguLabels', interactive: false, keyboard: false, icon: L.divIcon({className: 'lgu-lbl', html: '<span>' + f.properties.name + '</span>', iconSize: null})}).addTo(lguLayer);
+    }
+    setLgu(lguBox.checked);
+  }).catch(() => { lguBox.disabled = true; lguBox.parentElement.title = 'The LGU boundaries could not be loaded.'; });
   map.fitBounds(L.latLngBounds(stations.map((s) => [s.lat, s.lon])).pad(0.12));
   const markers = {};
   for (const s of stations) {
