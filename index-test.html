@@ -1,0 +1,1093 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="robots" content="noindex, nofollow, noarchive">
+<meta name="googlebot" content="noindex, nofollow, noarchive">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ormoc Bay WQMA Water Quality</title>
+<meta name="description" content="Water quality monitoring results for the 14 stations of the Ormoc Bay Water Quality Management Area.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<script>
+  /* Password screen. Only a SHA-256 fingerprint of the password is stored here, not the password itself. */
+  (function () {
+    var KEY = 'wqma-pass';
+    window.WQMA_PASS_HASH = 'c500c648f9e8e048d5f6dc9af874f22e8f88dc165017edc821cd8de28b726067';
+    var ok = false;
+    try { ok = localStorage.getItem(KEY) === window.WQMA_PASS_HASH || sessionStorage.getItem(KEY) === window.WQMA_PASS_HASH; } catch (e) {}
+    if (!ok) document.documentElement.classList.add('locked');
+  })();
+</script>
+<style>
+  /* Layout: one centered column; map card, tile grid, table. */
+  :root {
+    --bg: #f4f6f6; --panel: #ffffff; --fg: #17262b; --muted: #5b6b70; --line: #dbe2e3;
+    --accent: #1f6f8b; --ok: #2f8a57; --bad: #c8412d; --na: #a3adb0; --ref: #7a8a8f;
+    --sea: #d6e7ee; --popover: #ffffff;
+    --serif: "Source Serif 4", Georgia, serif; --sans: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --r: 8px; color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #0f1719; --panel: #172226; --fg: #e3ebec; --muted: #94a5a9; --line: #2a393d;
+      --accent: #5fb3d1; --ok: #57b97f; --bad: #ef6b56; --na: #64757a; --ref: #8fa1a6; --sea: #1b3540; --popover: #1d2a2e; color-scheme: dark; }
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.5 var(--sans); font-variant-numeric: tabular-nums; }
+  .wrap { max-width: 1240px; margin: 0 auto; padding: 28px max(16px, env(safe-area-inset-right)) 48px max(16px, env(safe-area-inset-left)); display: grid; gap: 28px; }
+  h1, h2, h3, p { margin: 0; }
+  header { display: grid; gap: 6px; }
+  .eyebrow { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--accent); font-weight: 600; }
+  h1 { font-family: var(--serif); font-weight: 400; font-size: clamp(28px, 4vw, 38px); line-height: 1.15; text-wrap: balance; }
+  .take { color: var(--muted); max-width: 72ch; }
+  .take b { color: var(--fg); font-weight: 600; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); padding: 20px; display: grid; gap: 14px; min-width: 0; }
+  .head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 6px 16px; }
+  h2 { font-size: 18px; font-weight: 500; }
+  h3 { font-size: 15px; font-weight: 500; }
+  .note { color: var(--muted); font-size: 13px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip { font: inherit; font-size: 13px; border: 1px solid var(--line); background: var(--bg); color: var(--fg); border-radius: 999px; padding: 5px 12px; cursor: pointer; }
+  .chip:hover { border-color: var(--muted); }
+  .chip[aria-pressed="true"] { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+  button:focus-visible, .tile:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .map-grid { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr); gap: 20px; align-items: start; }
+  @media (max-width: 780px) { .map-grid { grid-template-columns: minmax(0, 1fr); } }
+  #map { height: 480px; border-radius: var(--r); border: 1px solid var(--line); background: var(--sea); z-index: 0; }
+  @media (max-width: 780px) { #map { height: 380px; } }
+  .leaflet-container { font-family: var(--sans); }
+  .mk { width: 18px; height: 18px; border: 2px solid #fff; box-shadow: 0 1px 3px rgba(0,0,0,.35); }
+  .mk.cir { border-radius: 50%; }
+  .mk.dia { transform: rotate(45deg) scale(.85); border-radius: 2px; }
+  .mk.sel { outline: 3px solid var(--fg); outline-offset: 2px; }
+  .ok-bg { background: var(--ok); } .bad-bg { background: var(--bad); } .na-bg { background: var(--na); }
+  .leaflet-tooltip.tip { background: var(--popover); color: var(--fg); border: 1px solid var(--line); border-radius: 6px; box-shadow: 0 4px 14px rgba(0,0,0,.15); font-size: 12px; padding: 6px 9px; }
+  .tip .k { color: var(--muted); }
+  .legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 12px; color: var(--muted); align-items: center; }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .sw { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+  .sw.dia { border-radius: 1px; transform: rotate(45deg); width: 9px; height: 9px; background: var(--muted); }
+  .sw.cir { background: var(--muted); }
+  .side { display: grid; gap: 8px; min-width: 0; }
+  .rank { display: grid; gap: 2px; }
+  .rrow { display: grid; grid-template-columns: minmax(0, 9rem) minmax(0, 1fr) 5rem; gap: 8px; align-items: center; font: inherit; font-size: 12.5px; padding: 4px 6px; border-radius: 5px; cursor: pointer; border: 0; background: none; color: inherit; text-align: left; }
+  .rrow:hover, .rrow[aria-pressed="true"] { background: var(--bg); }
+  .rrow .nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .rrow .val { text-align: right; }
+  .track { position: relative; height: 9px; }
+  .bar { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 2px; }
+  .lim { position: absolute; top: -3px; bottom: -3px; border-left: 1.5px dashed var(--ref); }
+  .station { border-top: 1px solid var(--line); padding-top: 14px; display: grid; gap: 10px; }
+  .station-head { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; align-items: baseline; }
+  .x { font: inherit; font-size: 12px; background: none; border: 1px solid var(--line); color: var(--muted); border-radius: 999px; padding: 2px 10px; cursor: pointer; }
+  .st-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 11rem), 1fr)); gap: 8px; }
+  .st-cell { border: 1px solid var(--line); border-radius: var(--r); padding: 10px; display: grid; gap: 2px; background: var(--bg); }
+  .st-cell .p { font-size: 12px; color: var(--muted); }
+  .st-cell .v { font-family: var(--serif); font-size: 22px; }
+  .st-cell .s { font-size: 12px; color: var(--muted); display: inline-flex; gap: 6px; align-items: center; }
+  section.params { display: grid; gap: 14px; }
+  .controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  select { font: inherit; font-size: 13px; padding: 5px 8px; border-radius: 6px; border: 1px solid var(--line); background: var(--panel); color: var(--fg); }
+  .tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 17.5rem), 1fr)); gap: 14px; }
+  .tile { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); padding: 16px 18px; display: grid; gap: 10px; align-content: start; cursor: pointer; min-width: 0; }
+  .tile:hover { border-color: var(--muted); }
+  .tile[aria-pressed="true"] { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+  .tile .std { font-size: 12px; color: var(--muted); }
+  .main { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; }
+  .main b { font-family: var(--serif); font-weight: 400; font-size: 34px; line-height: 1.05; }
+  .main .u, .main .l { font-size: 12px; color: var(--muted); }
+  dl.mm { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 0; }
+  dl.mm div { display: grid; min-width: 0; }
+  dl.mm dt { font-size: 12px; color: var(--muted); }
+  dl.mm dd { margin: 0; display: grid; }
+  dl.mm dd b { font-weight: 600; }
+  dl.mm dd span { font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .fail { font-size: 12.5px; color: var(--muted); }
+  .fail b { color: var(--fg); font-weight: 600; } .fail b.bad { color: var(--bad); }
+  .spark { height: 48px; }
+  .spark svg { display: block; overflow: visible; }
+  .empty { color: var(--muted); font-size: 13px; }
+  .table-box { overflow: auto; max-height: 36rem; }
+  table { border-collapse: collapse; width: 100%; font-size: 13px; }
+  th { position: sticky; top: 0; background: var(--panel); text-align: right; font-weight: 500; color: var(--muted); padding: 8px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  td { text-align: right; padding: 7px 8px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  th:first-child, td:first-child { text-align: left; }
+  td.bad { color: var(--bad); font-weight: 600; }
+  tr.grp td { background: var(--bg); color: var(--muted); font-weight: 500; font-size: 12px; text-transform: uppercase; letter-spacing: .06em; }
+  #compliance .hm-wrap { overflow-x: auto; }
+  table.hm { border-collapse: separate; border-spacing: 3px; width: auto; font-size: 12px; }
+  table.hm th { position: static; background: none; border: 0; padding: 2px 4px; color: var(--muted); font-weight: 500; text-align: center; white-space: nowrap; }
+  table.hm th.st { text-align: left; padding-right: 12px; color: var(--fg); font-weight: 400; }
+  table.hm td { min-width: 46px; height: 30px; text-align: center; border: 0; border-radius: 4px; padding: 0 4px; font-size: 11.5px; font-weight: 600; white-space: nowrap; }
+  table.hm td.grp { background: none; color: var(--muted); text-align: left; font-weight: 500; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; padding-top: 8px; }
+  table.hm td.none { background: var(--bg); color: var(--muted); font-weight: 400; }
+  .h0 { background: #2f8a57; color: #fff; } .h1 { background: #9cc46a; color: #17262b; } .h2 { background: #e8c547; color: #17262b; }
+  .h3 { background: #e58a3c; color: #fff; } .h4 { background: #c8412d; color: #fff; }
+  .hm-key { display: inline-block; width: 26px; height: 12px; border-radius: 3px; }
+  .toolbar { position: sticky; top: 0; z-index: 1000; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 10px 14px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); box-shadow: 0 2px 8px rgba(0,0,0,.08); }
+  .tb-label { font-size: 13px; font-weight: 600; }
+  .map-tools { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; justify-content: space-between; }
+  .toggle { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; cursor: pointer; user-select: none; white-space: nowrap; }
+  .toggle input { width: 16px; height: 16px; accent-color: var(--accent); margin: 0; }
+  .mkw { position: relative; width: 18px; height: 18px; }
+  .mkv { position: absolute; left: 22px; top: 0; background: var(--popover); color: var(--fg); border: 1px solid var(--line); border-radius: 4px; padding: 0 5px; font-size: 11px; font-weight: 600; line-height: 16px; white-space: nowrap; box-shadow: 0 1px 3px rgba(0,0,0,.2); }
+  .hist-head { display: flex; flex-wrap: wrap; gap: 2px 12px; align-items: baseline; }
+  .hist-head h4 { margin: 0; font-size: 14px; font-weight: 500; }
+  .hist { position: relative; min-height: 230px; }
+  .hist svg { display: block; overflow: visible; }
+  .hist .tick text { fill: var(--muted); font-size: 11px; }
+  .hist .tick line, .hist .domain { stroke: var(--line); }
+  .hist .lbl { fill: var(--muted); font-size: 11px; }
+  .hist-tip { position: absolute; pointer-events: none; background: var(--popover); color: var(--fg); border: 1px solid var(--line); border-radius: 6px; box-shadow: 0 4px 14px rgba(0,0,0,.15); font-size: 12px; padding: 5px 8px; white-space: nowrap; }
+  .hist-tip .k { color: var(--muted); }
+  .trend-btn { margin-left: auto; font-size: 12.5px; padding: 4px 11px; }
+  .trend-note { font-size: 13px; color: var(--fg); margin: 2px 0 0; line-height: 1.45; }
+  .trend-note .weak { color: var(--muted); }
+  @media print { .trend-btn { display: none !important; } }
+  .tile-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+  .info-btn { font: inherit; font-size: 11.5px; color: var(--accent); background: none; border: 1px solid var(--line); border-radius: 999px; padding: 2px 9px; cursor: pointer; white-space: nowrap; flex: none; }
+  .info-btn:hover { border-color: var(--accent); }
+  .info-btn[aria-expanded="true"] { background: var(--accent); color: var(--panel); border-color: var(--accent); }
+  .info { margin: 0; font-size: 13px; line-height: 1.5; background: var(--bg); border-left: 3px solid var(--accent); padding: 8px 10px; border-radius: 4px; cursor: default; }
+  .tb-actions { margin-left: auto; display: flex; gap: 6px; flex-wrap: wrap; }
+  .act { font: inherit; font-size: 12.5px; border: 1px solid var(--line); background: var(--bg); color: var(--fg); border-radius: 6px; padding: 5px 10px; cursor: pointer; white-space: nowrap; }
+  .act:hover { border-color: var(--accent); color: var(--accent); }
+  .toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: var(--fg); color: var(--bg); padding: 8px 14px; border-radius: 6px; font-size: 13px; z-index: 2000; }
+  .chg { font-size: 12.5px; color: var(--muted); margin: 0; }
+  .chg b { font-weight: 600; }
+  .chg .bad-c { color: var(--bad); } .chg .good-c { color: var(--ok); } .chg .neu-c { color: var(--fg); }
+  .print-only { display: none; }
+  @media (max-width: 700px) {
+    .toolbar { position: static; padding: 10px 12px; }
+    .tb-actions { margin-left: 0; width: 100%; }
+    .act { flex: 1 1 auto; }
+    #map { height: 320px; }
+    .rrow { grid-template-columns: minmax(0, 7.5rem) minmax(0, 1fr) 4.4rem; }
+    .wrap { gap: 20px; padding-top: 18px; }
+    .card { padding: 14px; }
+    .head { flex-direction: column; align-items: flex-start; }
+    .hist { min-height: 200px; }
+    .st-grid { grid-template-columns: 1fr 1fr; }
+    .st-cell .v { font-size: 18px; }
+  }
+  @media print {
+    @page { size: A4 landscape; margin: 10mm; }
+    :root { --bg: #ffffff; --panel: #ffffff; --fg: #111111; --muted: #444444; --line: #cccccc; --popover: #ffffff; color-scheme: light; }
+    * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    body { font-size: 11px; }
+    .toolbar, .chips, .toggle, .info-btn, .info, .x, .act, .leaflet-control-container, .note, .take { display: none !important; }
+    .print-only { display: block; font-size: 12px; color: var(--fg); }
+    .wrap { max-width: none; padding: 0; gap: 8px; }
+    .card, .tile { box-shadow: none; break-inside: avoid; }
+    .map-grid { grid-template-columns: 1.6fr 1fr; }
+    #map { height: 330px; }
+    .tiles { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; }
+    .tile { padding: 8px; gap: 4px; }
+    .main b { font-size: 20px; }
+    .spark { display: none; }
+    #parameters { break-before: page; }
+    .table-box { max-height: none; overflow: visible; }
+    th { position: static; }
+  }
+  /* Tabs */
+  .toolbar { min-width: 0; }
+  .tabs { flex: 1 1 100%; min-width: 0; width: 100%; display: flex; gap: 2px; overflow-x: auto; border-bottom: 1px solid var(--line); margin: -2px 0 2px; scrollbar-width: thin; }
+  .tab { font: inherit; font-size: 14px; font-weight: 500; background: none; border: 0; border-bottom: 3px solid transparent; color: var(--muted); padding: 6px 14px 8px; cursor: pointer; white-space: nowrap; }
+  .tab:hover { color: var(--fg); }
+  .tab[aria-selected="true"] { color: var(--accent); border-bottom-color: var(--accent); }
+  .tab:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+  @media (max-width: 700px) { .tabs { margin: -4px -12px 2px; width: calc(100% + 24px); padding: 0 4px; gap: 0; } .tab { padding: 6px 7px 8px; font-size: 13px; } }
+  .st-pick { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; font-size: 13px; }
+  .st-pick label { display: inline-flex; gap: 6px; align-items: center; }
+  .pg-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr); gap: 24px; align-items: start; }
+  @media (max-width: 900px) { .pg-grid { grid-template-columns: minmax(0, 1fr); } }
+  .pg-bars svg, .pg-chart svg { display: block; overflow: visible; }
+  .pg-bars .bar-row { cursor: pointer; outline: none; }
+  .pg-bars .bar-row:focus-visible rect:first-child { stroke: var(--accent); stroke-width: 2; }
+  .pg-bars text, .pg-chart .tick text, .pg-chart .lbl { fill: var(--muted); font-size: 11px; }
+  .pg-bars text.nm { fill: var(--fg); font-size: 12px; }
+  .pg-bars text.sel { font-weight: 600; fill: var(--fg); }
+  .pg-bars .tick line { stroke: var(--line); }
+  .pg-chart .tick line, .pg-chart .domain { stroke: var(--line); }
+  .pg-chart { position: relative; min-height: 260px; }
+  .pg-legend .ln { display: inline-block; width: 18px; height: 0; border-top: 2.5px solid var(--accent); }
+  .pg-legend .ln.base { border-top: 2px dashed #d08a2e; }
+  .pg-legend .ln.std { border-top: 2px dotted var(--ok); }
+  .pg-legend .win { display: inline-block; width: 14px; height: 10px; background: var(--accent); opacity: .18; }
+  .st-cell .v.good-c { color: var(--ok); } .st-cell .v.bad-c { color: var(--bad); }
+  @media print { .tabs, .st-pick, .pg-win, .pg-open { display: none !important; } .pg-grid { grid-template-columns: 1fr 1.5fr; } }
+  /* Password screen */
+  html.locked .wrap { display: none; }
+  #gate { display: none; min-height: 100vh; place-items: center; padding: 24px 16px; }
+  html.locked #gate { display: grid; }
+  .gate-card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); padding: 28px 26px; width: min(380px, 100%); display: grid; gap: 14px; box-shadow: 0 1px 3px rgba(0,0,0,.06); }
+  .gate-card h1 { font: 600 22px/1.25 var(--serif); margin: 0; }
+  .gate-card p { margin: 0; color: var(--muted); font-size: 13.5px; }
+  .gate-card label { font-size: 13px; font-weight: 500; display: grid; gap: 6px; }
+  .gate-card input[type=password] { font: inherit; padding: 9px 11px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--fg); }
+  .gate-card input[type=password]:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .gate-card .rem { display: flex; align-items: center; gap: 8px; font-weight: 400; color: var(--muted); }
+  .gate-card button { font: 600 14px var(--sans); padding: 10px; border: 0; border-radius: 6px; background: var(--accent); color: #fff; cursor: pointer; }
+  .gate-card button:disabled { opacity: .6; cursor: default; }
+  .gate-err { color: var(--bad) !important; min-height: 1.2em; }
+  .signout { background: none; border: 0; padding: 0; font: inherit; color: var(--accent); text-decoration: underline; cursor: pointer; }
+  @media print { html.locked body { display: none; } .signout-p { display: none; } }
+  footer { color: var(--muted); font-size: 12.5px; display: grid; gap: 4px; }
+  .loading { color: var(--muted); }
+</style>
+</head>
+<body>
+<div id="gate">
+  <form class="gate-card" id="gate-form" autocomplete="off">
+    <span class="eyebrow">DENR-EMB Region 8 · Ormoc Bay WQMA</span>
+    <h1>Ormoc Bay WQMA water quality</h1>
+    <p>This dashboard is for authorized users. Enter the password to continue.</p>
+    <label>Password<input type="password" id="gate-pw" required autofocus></label>
+    <label class="rem"><input type="checkbox" id="gate-rem" checked> Keep me signed in on this device</label>
+    <button type="submit" id="gate-btn">Open dashboard</button>
+    <p class="gate-err" id="gate-err" role="alert"></p>
+  </form>
+</div>
+<div class="wrap">
+  <header>
+    <span class="eyebrow">DENR-EMB Region 8 · Ormoc Bay Water Quality Management Area</span>
+    <h1>Ormoc Bay WQMA water quality</h1>
+    <p class="take" id="take"><span class="loading">Loading monitoring data…</span></p>
+    <p class="print-only" id="print-head"></p>
+  </header>
+
+  <section class="toolbar" id="period-bar" aria-label="Sections and period shown">
+    <nav class="tabs" role="tablist" aria-label="Dashboard sections">
+      <button class="tab" role="tab" type="button" data-tab="overview" aria-selected="true">Overview</button>
+      <button class="tab" role="tab" type="button" data-tab="progress">Progress</button>
+      <button class="tab" role="tab" type="button" data-tab="stations">Stations</button>
+      <button class="tab" role="tab" type="button" data-tab="compliance">Compliance</button>
+      <button class="tab" role="tab" type="button" data-tab="data">Data</button>
+    </nav>
+    <span class="tb-label period-ctl">Showing</span>
+    <div class="chips period-ctl" role="group" aria-label="Period length">
+      <button class="chip" data-view="month">Month</button>
+      <button class="chip" data-view="quarter">Quarter</button>
+      <button class="chip" data-view="semester">Semester</button>
+      <button class="chip" data-view="year">Year</button>
+    </div>
+    <select id="period" class="period-ctl" aria-label="Period"></select>
+    <span class="tb-label">Stations</span>
+    <div class="chips" role="group" aria-label="Station type">
+      <button class="chip" data-group="all">All</button>
+      <button class="chip" data-group="Freshwater">Rivers (freshwater)</button>
+      <button class="chip" data-group="Marine">Coastal (marine)</button>
+    </div>
+    <span class="note" id="tb-hint">The map, ranking and tiles follow these choices.</span>
+    <div class="tb-actions">
+      <button class="act" id="copy-link" type="button">Copy link to this view</button>
+      <button class="act" id="print-view" type="button">Print / Save as PDF</button>
+      <button class="act" id="dl-all" type="button">Download all data (CSV)</button>
+    </div>
+  </section>
+
+  <section class="card" id="map-view" data-panel="overview">
+    <div class="head">
+      <h2>Map view · <span id="map-period"></span></h2>
+      <p class="note">Each station's value for the chosen period, averaged when the period has more than one reading (geometric mean for fecal coliform). Pick a parameter, then click a station to see its history.</p>
+    </div>
+    <div class="map-tools">
+      <div class="chips" id="map-chips" role="group" aria-label="Parameter shown on the map"></div>
+      <label class="toggle"><input type="checkbox" id="show-values"> Show values on map</label>
+    </div>
+    <div class="map-grid">
+      <div id="map" role="region" aria-label="Map of monitoring stations"></div>
+      <div class="side">
+        <h3>Stations ranked</h3>
+        <p class="note">Dashed line marks the standard. Wide-ranging parameters use a log scale.</p>
+        <div class="rank" id="rank"></div>
+      </div>
+    </div>
+    <div class="legend">
+      <span><i class="sw ok-bg"></i>Within standard</span>
+      <span><i class="sw bad-bg"></i>Outside standard</span>
+      <span><i class="sw na-bg"></i>No standard or no reading</span>
+      <span><i class="sw cir"></i>Freshwater station</span>
+      <span><i class="sw dia"></i>Marine station</span>
+    </div>
+  </section>
+
+  <section class="params" id="parameters" data-panel="overview">
+    <div class="head">
+      <h2>Parameters · <span id="tiles-period"></span></h2>
+    </div>
+    <p class="note">Average, minimum and maximum of every station reading in the chosen period. Fecal coliform uses the geometric mean, the usual way to summarise bacteria counts. The small chart shows the last 12 periods: line for the average, band from minimum to maximum, dashed line for the standard. Click a tile to show it on the map.</p>
+    <div class="tiles" id="tiles"></div>
+  </section>
+
+  <section class="card" id="progress" data-panel="progress" hidden>
+    <div class="head">
+      <h2>Fecal coliform progress</h2>
+      <p class="note">Is each station getting better or worse than its recent normal? This compares the average of the latest samplings with each station's baseline as formalized in the WQMA action plan. The DAO standard of 200 MPN/100 mL remains the long-term goal.</p>
+    </div>
+    <div class="st-pick pg-win"><span class="tb-label">Compare the latest</span><div class="chips" role="group" aria-label="Number of latest samplings" id="pg-win"><button class="chip" type="button" data-w="3">3 samplings</button><button class="chip" type="button" data-w="6">6 samplings</button><button class="chip" type="button" data-w="12">12 samplings</button></div><span class="note">12 samplings (about a year) evens out rainy and dry months. 3 reacts fastest but is noisier.</span></div>
+    <div class="pg-grid">
+      <div class="side">
+        <h3>All stations: change vs baseline</h3>
+        <p class="note">Green: lower bacteria than the baseline (better). Red: higher (worse). Grey: within 10%. Click a station to see its chart.</p>
+        <div class="pg-bars" id="pg-bars"></div>
+      </div>
+      <div class="side">
+        <div class="station-head"><h3 id="pg-name"></h3><button class="x pg-open" id="pg-open" type="button">Full history in Stations tab</button></div>
+        <div class="st-grid" id="pg-kpi"></div>
+        <div class="legend pg-legend"><span><i class="sw" style="background: var(--muted)"></i>Each sampling</span><span><i class="sw ok-bg"></i>At or below 200</span><span><i class="ln"></i>Rolling average</span><span><i class="ln base"></i>Action plan baseline</span><span><i class="ln std"></i>Standard 200</span><span><i class="win"></i>Latest samplings used</span></div>
+        <div class="pg-chart" id="pg-chart"></div>
+        <p class="note" id="pg-note"></p>
+      </div>
+    </div>
+  </section>
+
+  <section class="card" id="stations-tab" data-panel="stations" hidden>
+    <div class="head">
+      <h2>Station history</h2>
+      <div class="st-pick"><label>Station <select id="st-pick"></select></label><label>Parameter <select id="st-param"></select></label></div>
+    </div>
+    <div class="station" id="station" hidden>
+      <div class="station-head"><h3 id="st-name"></h3><button class="x" id="st-close" type="button" hidden>Close</button></div>
+      <div class="hist-head"><h4 id="hist-title"></h4><span class="note">Dashed line: standard. Red dots: outside the standard. Ringed dots: the period chosen above. Before 2020, sampling was quarterly.</span><button class="chip trend-btn" id="trend-btn" type="button" aria-pressed="false">Show trend</button></div>
+      <div class="hist" id="hist"></div>
+      <p class="chg trend-note" id="trend-note" hidden></p>
+      <p class="note">All parameters, <span id="st-month"></span></p>
+      <div class="st-grid" id="st-grid"></div>
+    </div>
+  </section>
+
+  <section class="card" id="compliance" data-panel="compliance" hidden>
+    <div class="head">
+      <h2>Compliance by station and year</h2>
+      <p class="note">Share of each year's readings that were outside the standard. Hover over a cell for the count.</p>
+    </div>
+    <div class="chips" id="hm-chips" role="group" aria-label="Parameter for the compliance map"></div>
+    <div class="hm-wrap"><table class="hm" id="hm"></table></div>
+    <div class="legend">
+      <span><i class="hm-key h0"></i>0% (all within standard)</span>
+      <span><i class="hm-key h1"></i>1–25%</span>
+      <span><i class="hm-key h2"></i>26–50%</span>
+      <span><i class="hm-key h3"></i>51–75%</span>
+      <span><i class="hm-key h4"></i>76–100%</span>
+      <span><i class="hm-key" style="background: var(--bg); border: 1px solid var(--line);"></i>No readings</span>
+    </div>
+    <p class="note" id="hm-note"></p>
+  </section>
+
+  <section class="card" id="latest" data-panel="data" hidden>
+    <div class="head">
+      <h2>Readings by station · <span id="tb-month"></span></h2>
+      <button class="act" id="dl-table" type="button">Download this table (CSV)</button>
+      <p class="note" id="tb-note">Red values are outside the standard.</p>
+    </div>
+    <div class="table-box"><table id="table"></table></div>
+  </section>
+
+  <footer>
+    <p>Standards: DAO 2016-08, Class C (freshwater) and Class SC (marine), as listed in the WQMA historical data file. Cells marked ND or left blank in the file are not shown.</p>
+    <p id="source"></p>
+    <p class="signout-p"><button type="button" class="signout" id="signout">Sign out</button></p>
+  </footer>
+</div>
+
+<script>
+  window.WQMA_UNLOCKED = new Promise(function (resolve) {
+    var KEY = 'wqma-pass', root = document.documentElement;
+    document.getElementById('signout').addEventListener('click', function () {
+      try { localStorage.removeItem(KEY); sessionStorage.removeItem(KEY); } catch (e) {}
+      location.reload();
+    });
+    if (!root.classList.contains('locked')) { resolve(); return; }
+    var form = document.getElementById('gate-form'), pw = document.getElementById('gate-pw'),
+        err = document.getElementById('gate-err'), btn = document.getElementById('gate-btn');
+    function hex(buf) { return Array.prototype.map.call(new Uint8Array(buf), function (b) { return ('0' + b.toString(16)).slice(-2); }).join(''); }
+    form.addEventListener('submit', function (ev) {
+      ev.preventDefault();
+      err.textContent = ''; btn.disabled = true;
+      if (!(window.crypto && crypto.subtle)) { err.textContent = 'This browser cannot check the password. Open the dashboard in an up-to-date browser.'; btn.disabled = false; return; }
+      crypto.subtle.digest('SHA-256', new TextEncoder().encode(pw.value)).then(function (buf) {
+        btn.disabled = false;
+        if (hex(buf) !== window.WQMA_PASS_HASH) { err.textContent = 'Incorrect password. Please try again.'; pw.select(); return; }
+        try { (document.getElementById('gate-rem').checked ? localStorage : sessionStorage).setItem(KEY, window.WQMA_PASS_HASH); } catch (e) {}
+        pw.value = '';
+        root.classList.remove('locked');
+        resolve();
+      });
+    });
+  });
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+(async function () {
+  await window.WQMA_UNLOCKED;
+  const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const SHORT = {temperature: 'Temperature', ph: 'pH', do: 'Dissolved oxygen', tss: 'TSS', color: 'True color', fc: 'Fecal coliform', bod: 'BOD', phosphate: 'Phosphate', nitrate: 'Nitrate', chloride: 'Chloride'};
+  const INFO = {
+    temperature: "How warm the water is. Warm water holds less oxygen, so unusually high temperatures can stress fish and other aquatic life. Warm discharges and loss of shade along riverbanks can raise it.",
+    ph: "How acidic or alkaline the water is, on a scale of 0 to 14 where 7 is neutral. Most fish and shellfish need water between 6.5 and 8.5; values outside that range can harm them and may point to pollution.",
+    do: "The oxygen dissolved in the water, which fish and other aquatic animals need to breathe. Higher is better. Levels below 5 mg/L usually mean sewage or other decaying waste is using up the oxygen.",
+    tss: "Soil, silt and other particles floating in the water that make it murky. High levels come from erosion, quarrying, construction and runoff after heavy rain; they block sunlight and can smother corals and fish habitats.",
+    color: "The colour of the water after particles are removed, mostly from dissolved plant material or waste. High values make water look brown or tea-coloured and can signal pollution from wastewater.",
+    fc: "Bacteria from human and animal waste. High levels mean sewage or manure is reaching the water, which makes it unsafe for swimming, bathing and gathering shellfish.",
+    bod: "How much oxygen bacteria use to break down organic waste such as sewage, food scraps and farm waste. Higher BOD means more waste in the water and less oxygen left for fish. Measured at river stations only.",
+    phosphate: "A nutrient from detergents, fertilizers and sewage. Too much feeds algae blooms that cloud the water and use up oxygen when they die off.",
+    nitrate: "A nutrient from fertilizers, animal waste and sewage. Like phosphate, too much feeds algae growth; very high levels also make water unsafe to drink.",
+    chloride: "Salt in the water. In rivers, high chloride usually means seawater is mixing in near the river mouth, especially at high tide, or that wastewater is entering. Measured at river stations only."
+  };
+  const bust = '?v=' + Date.now().toString(36).slice(0, -4);
+  const get = (f) => fetch(f + bust).then((r) => { if (!r.ok) throw new Error(f); return r.json(); });
+
+  let idx, stations, standards;
+  try {
+    [idx, stations, standards] = await Promise.all([get('index.json'), get('stations.json'), get('standards.json')]);
+  } catch (e) {
+    document.getElementById('take').textContent = 'The monitoring data could not be loaded. Refresh the page to try again.';
+    return;
+  }
+  const years = await Promise.all(idx.years.map((y) => get('readings-' + y + '.json')));
+  const ST = stations.map((s) => s.station);
+  const stName = Object.fromEntries(stations.map((s) => [s.station, s.name]));
+  const stType = Object.fromEntries(stations.map((s) => [s.station, s.type]));
+  const std = Object.fromEntries(standards.map((s) => [s.parameter, s]));
+  const PARAMS = standards.slice().sort((a, b) => a.order - b.order).map((s) => s.parameter);
+
+  // Flatten into readings
+  const readings = [];
+  for (const y of years) {
+    for (const [param, rows] of Object.entries(y.data)) {
+      rows.forEach((vals, i) => {
+        if (!vals) return;
+        const per = y.periods[i];
+        const q = per.includes('-Q') ? Number(per.slice(-1)) : null;
+        const m = q ? null : Number(per.slice(5, 7));
+        const quarter = q || Math.floor((m - 1) / 3) + 1;
+        vals.forEach((v, si) => {
+          if (v === null || v === undefined) return;
+          const raw = String(v);
+          const num = typeof v === 'number' ? v : parseFloat(raw.replace(/^[<>]\s*/, ''));
+          if (!Number.isFinite(num)) return;
+          readings.push({year: y.year, month: m, quarter, semester: quarter <= 2 ? 1 : 2, station: ST[si], parameter: param, value: num, raw});
+        });
+      });
+    }
+  }
+
+  const limits = (param, station) => {
+    const s = std[param]; const k = stType[station] === 'Marine' ? 'marine' : 'fresh';
+    return [s[k + '_min'], s[k + '_max']].map((x) => (x === null || x === undefined ? null : Number(x)));
+  };
+  const statusOf = (r) => {
+    if (!r) return 'none';
+    const [lo, hi] = limits(r.parameter, r.station);
+    if (lo === null && hi === null) return 'none';
+    return (lo !== null && r.value < lo) || (hi !== null && r.value > hi) ? 'outside' : 'within';
+  };
+  const cls = (s) => (s === 'within' ? 'ok-bg' : s === 'outside' ? 'bad-bg' : 'na-bg');
+  const fmt = (v) => (v === null || v === undefined || Number.isNaN(v) ? '—' : Math.abs(v) >= 1000 ? d3.format(',.0f')(v) : d3.format('.4~r')(v));
+  const el = (tag, attrs = {}, ...kids) => { const e = document.createElement(tag); for (const [k, v] of Object.entries(attrs)) { if (k === 'class') e.className = v; else if (k === 'text') e.textContent = v; else e.setAttribute(k, v); } e.append(...kids); return e; };
+
+  // Period statistics
+  const stats = new Map();
+  const periodsByView = {month: new Map(), quarter: new Map(), semester: new Map(), year: new Map()};
+  const flog = (v) => Math.log(v > 0 ? v : 1.8);
+  const avg = (g) => (g.parameter === 'fc' ? Math.exp(g.slog / g.n) : g.sum / g.n);
+  const add = (view, period, label, order, r) => {
+    periodsByView[view].set(period, {period, label, order});
+    for (const grp of ['all', stType[r.station]]) {
+    const key = grp + '|' + view + '|' + period + '|' + r.parameter;
+    let g = stats.get(key);
+    if (!g) { g = {grp, view, period, label, order, parameter: r.parameter, sum: 0, n: 0, min: Infinity, max: -Infinity, minSt: '', maxSt: '', fail: 0, checked: 0}; stats.set(key, g); }
+    g.sum += r.value; g.slog = (g.slog || 0) + flog(r.value); g.n++;
+    if (r.value < g.min) { g.min = r.value; g.minSt = r.station; }
+    if (r.value > g.max) { g.max = r.value; g.maxSt = r.station; }
+    const s = statusOf(r); if (s !== 'none') { g.checked++; if (s === 'outside') g.fail++; }
+    }
+  };
+  for (const r of readings) {
+    const y = r.year;
+    if (r.month) add('month', y + '-' + String(r.month).padStart(2, '0'), MON[r.month - 1] + ' ' + y, y * 100 + r.month, r);
+    add('quarter', y + '-Q' + r.quarter, 'Q' + r.quarter + ' ' + y, y * 10 + r.quarter, r);
+    add('semester', y + '-S' + r.semester, (r.semester === 1 ? '1st' : '2nd') + ' semester ' + y, y * 10 + r.semester, r);
+    add('year', String(y), String(y), y, r);
+  }
+  const periodList = (view) => [...periodsByView[view].values()].sort((a, b) => b.order - a.order);
+
+  // Latest month
+  const latestOrder = d3.max(readings.filter((r) => r.month), (r) => r.year * 100 + r.month);
+  const ly = Math.floor(latestOrder / 100), lm = latestOrder % 100;
+  const latestLabel = MON[lm - 1] + ' ' + ly;
+  const latest = {};
+  for (const r of readings) if (r.year === ly && r.month === lm) latest[r.station + '|' + r.parameter] = r;
+
+  // State
+  const TABS = ['overview', 'progress', 'stations', 'compliance', 'data'];
+  const state = {mapParam: 'fc', station: null, view: 'month', period: null, group: 'all', tab: 'overview', pw: 12};
+  let hadTab = false;
+  try {
+    const h = decodeURIComponent(location.hash.slice(1));
+    if (PARAMS.includes(h)) state.mapParam = h;
+    else for (const kv of h.split('&')) {
+      const [k, v] = kv.split('='); if (!v) continue;
+      if (k === 'p' && PARAMS.includes(v)) state.mapParam = v;
+      if (k === 'v' && ['month', 'quarter', 'semester', 'year'].includes(v)) state.view = v;
+      if (k === 't') state.period = v;
+      if (k === 'g' && ['all', 'Freshwater', 'Marine'].includes(v)) state.group = v;
+      if (k === 's' && stations.some((s) => s.station === v)) state.station = v;
+      if (k === 'tab' && TABS.includes(v)) { state.tab = v; hadTab = true; }
+      if (k === 'w' && ['3', '6', '12'].includes(v)) state.pw = Number(v);
+    }
+  } catch (e) {}
+  if (state.station && !hadTab) state.tab = 'stations';
+  const toast = (msg) => { const d = el('div', {class: 'toast', role: 'status', text: msg}); document.body.append(d); setTimeout(() => d.remove(), 2200); };
+  const csvCell = (v) => { const s = v === null || v === undefined ? '' : String(v); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
+  const download = (name, rows) => {
+    const text = '\ufeff' + rows.map((r) => r.map(csvCell).join(',')).join('\r\n');
+    const a = el('a', {href: URL.createObjectURL(new Blob([text], {type: 'text/csv;charset=utf-8'})), download: name});
+    document.body.append(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+  };
+  const GROUPS = {all: 'All stations', Freshwater: 'River (freshwater) stations', Marine: 'Coastal (marine) stations'};
+
+  // Summary sentence
+  {
+    let n = 0, bad = 0; const per = {};
+    for (const r of Object.values(latest)) { const s = statusOf(r); if (s === 'none') continue; n++; if (s === 'outside') { bad++; per[r.parameter] = (per[r.parameter] || 0) + 1; } }
+    const worst = Object.keys(per).sort((a, b) => per[b] - per[a])[0];
+    const t = document.getElementById('take'); t.replaceChildren(
+      'Latest sampling, ', el('b', {text: latestLabel}), ': ', el('b', {text: String(bad)}), ' of ', el('b', {text: String(n)}),
+      ' station readings were outside the standard' + (worst ? ', most often for ' : '.'), ...(worst ? [el('b', {text: std[worst].name.toLowerCase()}), ' (' + per[worst] + ' of 14 stations).'] : []));
+    const up = new Date(idx.updated);
+    document.getElementById('source').textContent = 'Source: ' + (idx.source || 'WQMA historical data file') + '. Data updated ' + (isNaN(up) ? idx.updated : up.toLocaleDateString('en-PH', {year: 'numeric', month: 'long', day: 'numeric'})) + '.';
+  }
+
+  // Map
+  const map = L.map('map', {scrollWheelZoom: false, attributionControl: true}).setView([10.975, 124.625], 11);
+  const streets = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom: 18, attribution: '&copy; OpenStreetMap contributors'});
+  const sat = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {maxZoom: 18, attribution: 'Imagery &copy; Esri'});
+  streets.addTo(map);
+  L.control.layers({'Streets': streets, 'Satellite': sat}, null, {position: 'topright'}).addTo(map);
+  L.control.scale({imperial: false}).addTo(map);
+  map.fitBounds(L.latLngBounds(stations.map((s) => [s.lat, s.lon])).pad(0.12));
+  const markers = {};
+  for (const s of stations) {
+    const m = L.marker([s.lat, s.lon], {keyboard: true, title: s.name}).addTo(map);
+    m.on('click', () => { state.station = s.station; showTab('stations'); });
+    markers[s.station] = m;
+  }
+
+  // Chips
+  const chips = document.getElementById('map-chips');
+  for (const p of PARAMS) {
+    const b = el('button', {class: 'chip', 'data-param': p, text: SHORT[p]});
+    b.addEventListener('click', () => { state.mapParam = p; render(); });
+    chips.append(b);
+  }
+  document.querySelectorAll('[data-view]').forEach((b) => b.addEventListener('click', () => { state.view = b.dataset.view; state.period = null; render(); }));
+  const sel = document.getElementById('period');
+  sel.addEventListener('change', () => { state.period = sel.value; render(); });
+  document.getElementById('st-close').addEventListener('click', () => { state.station = null; render(); });
+  const showValues = document.getElementById('show-values');
+  showValues.addEventListener('change', render);
+  document.getElementById('copy-link').addEventListener('click', () => {
+    const url = location.href;
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(url).then(() => toast('Link copied. It opens this exact view.'), () => window.prompt('Copy this link:', url));
+    else window.prompt('Copy this link:', url);
+  });
+  document.getElementById('print-view').addEventListener('click', () => window.print());
+  document.getElementById('dl-all').addEventListener('click', () => {
+    const rows = [['year', 'month', 'quarter', 'station_id', 'station', 'station_type', 'parameter', 'value_as_recorded', 'unit', 'standard']];
+    const sorted = readings.slice().sort((a, b) => a.year - b.year || (a.month || a.quarter * 3) - (b.month || b.quarter * 3) || ST.indexOf(a.station) - ST.indexOf(b.station) || PARAMS.indexOf(a.parameter) - PARAMS.indexOf(b.parameter));
+    for (const r of sorted) rows.push([r.year, r.month ? MON[r.month - 1] : '', 'Q' + r.quarter, r.station, stName[r.station], stType[r.station], std[r.parameter].name, r.raw, std[r.parameter].unit, std[r.parameter].standard]);
+    download('ormoc-bay-wqma-readings.csv', rows);
+  });
+  document.getElementById('dl-table').addEventListener('click', () => {
+    const plabel = periodsByView[state.view].get(state.period).label;
+    const rows = [['period', 'station', 'station_type', ...PARAMS.map((q) => std[q].name + (std[q].unit ? ' (' + std[q].unit + ')' : ''))]];
+    for (const s of stations.filter(inGroup)) rows.push([plabel, s.name, s.type, ...PARAMS.map((q) => { const r = cur[s.station + '|' + q]; return r ? (r.n > 1 ? +r.value.toPrecision(4) : r.raw) : ''; })]);
+    download('ormoc-bay-wqma-' + state.period + '.csv', rows);
+  });
+  const inGroup = (s) => state.group === 'all' || s.type === state.group;
+  document.querySelectorAll('[data-group]').forEach((b) => b.addEventListener('click', () => {
+    state.group = b.dataset.group;
+    if (state.station && !inGroup(stations.find((d) => d.station === state.station))) state.station = null;
+    render(); renderHeat();
+  }));
+
+  // Values for the chosen period: one reading as recorded, several averaged
+  const inPeriod = (r, view, period) => {
+    if (view === 'month') return !!r.month && (r.year + '-' + String(r.month).padStart(2, '0')) === period;
+    if (view === 'quarter') return (r.year + '-Q' + r.quarter) === period;
+    if (view === 'semester') return (r.year + '-S' + r.semester) === period;
+    return String(r.year) === period;
+  };
+  let cur = {};
+  function computeCurrent() {
+    cur = {};
+    for (const r of readings) {
+      if (!inPeriod(r, state.view, state.period)) continue;
+      const k = r.station + '|' + r.parameter;
+      const c = cur[k] || (cur[k] = {station: r.station, parameter: r.parameter, sum: 0, n: 0, raw: r.raw});
+      c.sum += r.value; c.slog = (c.slog || 0) + flog(r.value); c.n++;
+    }
+    for (const c of Object.values(cur)) { c.value = avg(c); if (c.n > 1) c.raw = fmt(c.value); }
+  }
+
+  // Tiles skeleton
+  const tilesBox = document.getElementById('tiles');
+  const tiles = {};
+  for (const p of PARAMS) {
+    const s = std[p];
+    const t = el('article', {class: 'tile', tabindex: '0', id: 'tile-' + p});
+    const mean = el('b'), min = el('b'), minSt = el('span'), max = el('b'), maxSt = el('span'), fail = el('b'), n = el('b'), spark = el('div', {class: 'spark'}), chg = el('p', {class: 'chg'});
+    const info = el('p', {class: 'info', id: 'info-' + p, text: INFO[p] || ''}); info.hidden = true;
+    const infoBtn = el('button', {class: 'info-btn', type: 'button', 'aria-expanded': 'false', 'aria-controls': 'info-' + p, text: 'What is this?'});
+    infoBtn.addEventListener('click', (e) => { e.stopPropagation(); info.hidden = !info.hidden; infoBtn.setAttribute('aria-expanded', String(!info.hidden)); });
+    infoBtn.addEventListener('keydown', (e) => e.stopPropagation());
+    info.addEventListener('click', (e) => e.stopPropagation());
+    t.append(
+      el('div', {class: 'tile-top'}, el('div', {}, el('h3', {text: s.name}), el('div', {class: 'std', text: 'Standard: ' + s.standard})), infoBtn),
+      info,
+      el('div', {class: 'main'}, mean, ...(s.unit ? [el('span', {class: 'u', text: s.unit})] : []), el('span', {class: 'l', text: p === 'fc' ? 'geometric mean' : 'average'})),
+      el('dl', {class: 'mm'}, el('div', {}, el('dt', {text: 'Minimum'}), el('dd', {}, min, minSt)), el('div', {}, el('dt', {text: 'Maximum'}), el('dd', {}, max, maxSt))),
+      chg,
+      el('p', {class: 'fail'}, fail, ' of ', n, ' readings outside the standard'),
+      spark);
+    const pick = () => { state.mapParam = p; render(); document.getElementById('map-view').scrollIntoView({behavior: 'smooth', block: 'start'}); };
+    t.addEventListener('click', pick);
+    t.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pick(); } });
+    tilesBox.append(t);
+    tiles[p] = {t, mean, min, minSt, max, maxSt, fail, n, spark, chg};
+  }
+
+  // Table
+  const table = document.getElementById('table');
+  {
+    const thead = el('thead', {}, el('tr', {}, el('th', {text: 'Station'}), ...PARAMS.map((p) => el('th', {text: SHORT[p] === 'Dissolved oxygen' ? 'DO' : SHORT[p], title: std[p].name + (std[p].unit ? ' (' + std[p].unit + ')' : '')}))));
+    table.append(thead, el('tbody'));
+  }
+  function renderTable() {
+    const tb = el('tbody');
+    let grp = '';
+    for (const s of stations.filter(inGroup)) {
+      if (s.type !== grp) { grp = s.type; tb.append(el('tr', {class: 'grp'}, Object.assign(el('td', {text: grp + ' stations'}), {colSpan: PARAMS.length + 1}))); }
+      const tr = el('tr', {}, el('td', {text: s.name}));
+      for (const p of PARAMS) { const r = cur[s.station + '|' + p]; const td = el('td', {text: r ? r.raw : ''}); if (r && r.n > 1) td.title = (p === 'fc' ? 'Geometric mean of ' : 'Average of ') + r.n + ' readings'; if (statusOf(r) === 'outside') td.className = 'bad'; tr.append(td); }
+      tb.append(tr);
+    }
+    table.querySelector('tbody').replaceWith(tb);
+  }
+
+  // Station history chart
+  const histBox = document.getElementById('hist');
+  const trendBtn = document.getElementById('trend-btn'), trendNote = document.getElementById('trend-note');
+  let showTrend = false;
+  trendBtn.addEventListener('click', () => {
+    showTrend = !showTrend;
+    if (state.station) drawHistory(state.station, state.mapParam);
+  });
+  function drawHistory(station, param) {
+    histBox.replaceChildren();
+    trendBtn.setAttribute('aria-pressed', String(showTrend));
+    trendBtn.textContent = showTrend ? 'Hide trend' : 'Show trend';
+    trendNote.hidden = true; trendNote.replaceChildren();
+    const s = std[param], st = stations.find((d) => d.station === station);
+    document.getElementById('hist-title').textContent = s.name + (s.unit ? ' (' + s.unit + ')' : '') + ' at ' + st.name + ', all years';
+    const pts = readings.filter((r) => r.station === station && r.parameter === param)
+      .map((r) => ({r, d: new Date(Date.UTC(r.year, r.month ? r.month - 1 : (r.quarter - 1) * 3 + 1, 15))}))
+      .sort((a, b) => a.d - b.d);
+    if (!pts.length) { histBox.append(el('p', {class: 'empty', text: 'No ' + s.name.toLowerCase() + ' readings at this station.'})); return; }
+    const W = histBox.clientWidth || 600, H = 230, m = {t: 14, r: 14, b: 26};
+    const lims = limits(param, station).filter((v) => v !== null);
+    const vals = pts.map((p) => p.r.value);
+    const pos = vals.filter((v) => v > 0);
+    const hi = Math.max(d3.max(vals), ...lims.filter((l) => l < d3.max(vals) * 5));
+    const loPos = Math.min(d3.min(pos) || 1, ...lims.filter((l) => l > 0));
+    const useLog = pos.length > 1 && hi / loPos > 100;
+    const yv = (v) => (useLog ? Math.max(v, loPos / 2) : v);
+    const y = useLog ? d3.scaleLog([loPos / 2, hi * 1.2], [H - m.b, m.t]).clamp(true)
+      : d3.scaleLinear([Math.min(0, d3.min(vals), ...lims), hi], [H - m.b, m.t]).nice();
+    const yAxis = d3.axisLeft(y).ticks(5, useLog ? '~s' : '~r');
+    const probe = d3.select(histBox).append('svg').attr('width', 10).attr('height', 10);
+    const g0 = probe.append('g').call(yAxis);
+    let left = 0; g0.selectAll('text').each(function () { left = Math.max(left, this.getComputedTextLength()); });
+    probe.remove();
+    m.l = Math.ceil(left) + 14;
+    const x = d3.scaleUtc(d3.extent(pts, (p) => p.d), [m.l, W - m.r]);
+    const svg = d3.select(histBox).append('svg').attr('width', '100%').attr('height', H).attr('viewBox', '0 0 ' + W + ' ' + H)
+      .attr('role', 'img').attr('aria-label', s.name + ' history at ' + st.name);
+    const yrs = d3.utcYear.range(d3.utcYear.floor(x.domain()[0]), x.domain()[1]);
+    const every = Math.max(1, Math.ceil(yrs.length / Math.max(2, Math.floor((W - m.l) / 52))));
+    svg.append('g').attr('transform', 'translate(0,' + (H - m.b) + ')').call(d3.axisBottom(x).ticks(d3.utcYear.every(every)).tickFormat(d3.utcFormat('%Y'))).attr('font-size', null).attr('font-family', null);
+    svg.append('g').attr('transform', 'translate(' + m.l + ',0)').call(yAxis).attr('font-size', null).attr('font-family', null)
+      .call((g) => g.selectAll('.tick line').clone().attr('x2', W - m.l - m.r).attr('stroke', 'var(--line)').attr('stroke-opacity', 0.6));
+    for (const l of lims) {
+      svg.append('line').attr('x1', m.l).attr('x2', W - m.r).attr('y1', y(yv(l))).attr('y2', y(yv(l))).attr('stroke', 'var(--bad)').attr('stroke-width', 1.5).attr('stroke-dasharray', '5 4');
+      svg.append('text').attr('class', 'lbl').attr('x', W - m.r).attr('y', y(yv(l)) - 4).attr('text-anchor', 'end').text('Standard ' + fmt(l));
+    }
+    const segs = []; let segp = [];
+    for (const p of pts) { if (segp.length && p.d - segp[segp.length - 1].d > 200 * 864e5) { segs.push(segp); segp = []; } segp.push(p); }
+    segs.push(segp);
+    const line = d3.line().x((p) => x(p.d)).y((p) => y(yv(p.r.value)));
+    for (const sg of segs) svg.append('path').datum(sg).attr('fill', 'none').attr('stroke', 'var(--accent)').attr('stroke-width', 2).attr('stroke-linejoin', 'round').attr('stroke-linecap', 'round').attr('d', line);
+    svg.append('g').selectAll('circle').data(pts).join('circle').attr('cx', (p) => x(p.d)).attr('cy', (p) => y(yv(p.r.value)))
+      .attr('r', (p) => (inPeriod(p.r, state.view, state.period) ? 5 : 3))
+      .attr('fill', (p) => (statusOf(p.r) === 'outside' ? 'var(--bad)' : 'var(--accent)'))
+      .attr('stroke', (p) => (inPeriod(p.r, state.view, state.period) ? 'var(--fg)' : 'none')).attr('stroke-width', 2);
+    if (showTrend) drawTrend(svg, pts, x, y, yv, useLog, m, W, H, s, param);
+    const tip = el('div', {class: 'hist-tip'}); tip.hidden = true; histBox.append(tip);
+    const dot = svg.append('circle').attr('r', 6).attr('fill', 'none').attr('stroke', 'var(--fg)').attr('stroke-width', 1.5).style('display', 'none');
+    svg.append('rect').attr('x', m.l).attr('y', m.t).attr('width', W - m.l - m.r).attr('height', H - m.t - m.b).attr('fill', 'transparent')
+      .on('mousemove', (e) => {
+        const [mx] = d3.pointer(e);
+        const t = x.invert(mx);
+        let best = pts[0]; for (const p of pts) if (Math.abs(p.d - t) < Math.abs(best.d - t)) best = p;
+        const r = best.r, cx = x(best.d), cy = y(yv(r.value));
+        dot.style('display', null).attr('cx', cx).attr('cy', cy);
+        const when = r.month ? MON[r.month - 1] + ' ' + r.year : 'Q' + r.quarter + ' ' + r.year;
+        const status = statusOf(r);
+        tip.replaceChildren(el('div', {class: 'k', text: when}), el('div', {text: r.raw + (s.unit ? ' ' + s.unit : '')}), el('div', {class: 'k', text: status === 'outside' ? 'Outside the standard' : status === 'within' ? 'Within the standard' : 'No standard applies'}));
+        tip.hidden = false;
+        const bw = histBox.clientWidth; let lx = cx * bw / W + 12; if (lx > bw - 150) lx = cx * bw / W - 150;
+        tip.style.left = lx + 'px'; tip.style.top = Math.max(0, cy - 10) + 'px';
+      })
+      .on('mouseleave', () => { tip.hidden = true; dot.style('display', 'none'); });
+  }
+
+  // Trend line: least-squares straight line through all readings at the station.
+  // Fitted on the log scale when the chart uses a log axis (e.g. fecal coliform), so the line is straight on the chart.
+  function drawTrend(svg, pts, x, y, yv, useLog, m, W, H, s, param) {
+    const YR = 365.25 * 864e5;
+    const xs = pts.map((p) => p.d.getTime() / YR);
+    const ys = pts.map((p) => (useLog ? Math.log10(yv(p.r.value)) : p.r.value));
+    const n = xs.length, mx = d3.mean(xs), my = d3.mean(ys);
+    let sxx = 0, sxy = 0;
+    for (let i = 0; i < n; i++) { sxx += (xs[i] - mx) ** 2; sxy += (xs[i] - mx) * (ys[i] - my); }
+    trendNote.hidden = false;
+    if (n < 4 || xs[n - 1] - xs[0] < 1 || sxx === 0) {
+      trendNote.textContent = 'Not enough readings spread over time to draw a trend line for this station.';
+      return;
+    }
+    const b = sxy / sxx, a = my - b * mx;
+    let sse = 0; for (let i = 0; i < n; i++) sse += (ys[i] - (a + b * xs[i])) ** 2;
+    const se = Math.sqrt(sse / (n - 2) / sxx);
+    const clear = se === 0 || Math.abs(b / se) >= 2;
+    const at = (d) => { const v = a + b * (d.getTime() / YR); return useLog ? Math.pow(10, v) : v; };
+    const [d0, d1] = x.domain();
+    const cid = 'trend-clip';
+    svg.append('clipPath').attr('id', cid).append('rect').attr('x', m.l).attr('y', m.t).attr('width', W - m.l - m.r).attr('height', H - m.t - m.b);
+    svg.append('line').attr('clip-path', 'url(#' + cid + ')')
+      .attr('x1', x(d0)).attr('y1', y(yv(Math.max(at(d0), useLog ? 0 : -Infinity)))).attr('x2', x(d1)).attr('y2', y(yv(at(d1))))
+      .attr('stroke', 'var(--fg)').attr('stroke-width', 2.5).attr('stroke-opacity', 0.85).attr('stroke-dasharray', clear ? null : '8 5')
+      .attr('pointer-events', 'none');
+    const v0 = at(d0), v1 = at(d1), u = s.unit ? ' ' + s.unit : '';
+    const up = b > 0;
+    const dir = param === 'do' ? 1 : (param === 'temperature' || param === 'ph') ? 0 : -1;
+    const cls = dir === 0 ? 'neu-c' : (up === (dir > 0)) ? 'good-c' : 'bad-c';
+    const rate = useLog ? (up ? '+' : '−') + d3.format('.2~r')(Math.abs(Math.pow(10, b) - 1) * 100) + '% per year'
+      : (up ? '+' : '−') + fmt(Math.abs(b)) + u + ' per year';
+    const yr0 = d0.getUTCFullYear(), yr1 = d1.getUTCFullYear();
+    const parts = [el('b', {class: cls, text: (up ? '▲ Increasing' : '▼ Decreasing') + ' over time'}),
+      ' (' + rate + (cls === 'good-c' ? ', better' : cls === 'bad-c' ? ', worse' : '') + '). ',
+      'The trend line goes from about ' + fmt(Math.max(v0, 0)) + u + ' in ' + yr0 + ' to about ' + fmt(Math.max(v1, 0)) + u + ' in ' + yr1 + '. '];
+    parts.push(el('span', {class: 'weak', text: clear
+      ? 'The change is large compared with the ups and downs between readings, so the trend is clear.'
+      : 'Readings go up and down a lot around this line, so the trend is weak and may not be real (shown dashed).'}));
+    trendNote.replaceChildren(...parts);
+  }
+
+  // Compliance heat map
+  const hmTable = document.getElementById('hm');
+  const hmChips = document.getElementById('hm-chips');
+  const hmYears = [...new Set(readings.map((r) => r.year))].sort((a, b) => a - b);
+  const bucket = (p) => (p === 0 ? 0 : p <= 0.25 ? 1 : p <= 0.5 ? 2 : p <= 0.75 ? 3 : 4);
+  let hmParam = 'fc';
+  for (const p of PARAMS) {
+    const b = el('button', {class: 'chip', 'data-hm': p, text: SHORT[p]});
+    b.addEventListener('click', () => { hmParam = p; renderHeat(); });
+    hmChips.append(b);
+  }
+  function renderHeat() {
+    hmChips.querySelectorAll('.chip').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.hm === hmParam)));
+    const cnt = {};
+    for (const r of readings) {
+      if (r.parameter !== hmParam) continue;
+      const s = statusOf(r); if (s === 'none') continue;
+      const k = r.station + '|' + r.year;
+      const c = cnt[k] || (cnt[k] = {n: 0, bad: 0});
+      c.n++; if (s === 'outside') c.bad++;
+    }
+    const gs = stations.filter(inGroup);
+    const ys = hmYears.filter((y) => gs.some((s) => cnt[s.station + '|' + y]));
+    const shown = gs.filter((s) => ys.some((y) => cnt[s.station + '|' + y]));
+    const body = []; let grp = '';
+    for (const s of shown) {
+      if (s.type !== grp) { grp = s.type; const g = el('td', {class: 'grp', text: grp + ' stations'}); g.colSpan = ys.length + 1; body.push(el('tr', {}, g)); }
+      const tr = el('tr', {}, el('th', {class: 'st', text: s.name}));
+      for (const y of ys) {
+        const c = cnt[s.station + '|' + y];
+        if (!c) { tr.append(el('td', {class: 'none', text: '–', title: s.name + ', ' + y + ': no readings'})); continue; }
+        const p = c.bad / c.n;
+        tr.append(el('td', {class: 'h' + bucket(p), text: Math.round(p * 100) + '%', title: s.name + ', ' + y + ': ' + c.bad + ' of ' + c.n + ' readings outside the standard'}));
+      }
+      body.push(tr);
+    }
+    hmTable.replaceChildren(el('thead', {}, el('tr', {}, el('th', {class: 'st', text: 'Station'}), ...ys.map((y) => el('th', {text: String(y)})))), el('tbody', {}, ...body));
+    const notes = ['Standard: ' + std[hmParam].standard + '.'];
+    if (ys.some((y) => y < 2020)) notes.push('Before 2020, sampling was quarterly, so those years have fewer readings.');
+    if (ys.includes(ly) && lm < 12) notes.push(ly + ' covers January to ' + ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'][lm - 1] + ' only.');
+    if (shown.length < gs.length) notes.push('Stations with no applicable standard or no readings are not listed.');
+    document.getElementById('hm-note').textContent = notes.join(' ');
+  }
+  renderHeat();
+
+  function drawSpark(box, param, view, period) {
+    box.replaceChildren();
+    const all = [...stats.values()].filter((g) => g.grp === state.group && g.view === view && g.parameter === param).sort((a, b) => a.order - b.order);
+    const at = all.findIndex((g) => g.period === period);
+    if (at < 0) return;
+    const rows = all.slice(Math.max(0, at - 11), at + 1);
+    const W = box.clientWidth || 260, H = 48, pad = 4;
+    const lims = [std[param].fresh_min, std[param].fresh_max].filter((x) => x !== null && x !== undefined).map(Number);
+    const lo = d3.min(rows, (r) => r.min), hi = d3.max(rows, (r) => r.max);
+    const useLog = hi / Math.max(1e-6, lo) > 100 && lo > 0;
+    const shown = lims.filter((l) => l <= hi * 3 && l >= lo / 3);
+    const dom = [Math.min(lo, ...shown), Math.max(hi, ...shown)];
+    const y = useLog ? d3.scaleLog([Math.max(dom[0], 1e-3), dom[1]], [H - pad, pad]).clamp(true) : d3.scaleLinear(dom, [H - pad, pad]).nice();
+    const x = d3.scalePoint(rows.map((r) => r.period), [pad, W - pad]);
+    const svg = d3.select(box).append('svg').attr('width', '100%').attr('height', H).attr('viewBox', '0 0 ' + W + ' ' + H).attr('role', 'img').attr('aria-label', 'Trend over the last ' + rows.length + ' periods');
+    svg.append('path').datum(rows).attr('fill', 'var(--accent)').attr('fill-opacity', 0.14).attr('d', d3.area().x((r) => x(r.period)).y0((r) => y(r.min)).y1((r) => y(r.max)));
+    for (const l of shown) svg.append('line').attr('x1', pad).attr('x2', W - pad).attr('y1', y(l)).attr('y2', y(l)).attr('stroke', 'var(--ref)').attr('stroke-dasharray', '3 3');
+    svg.append('path').datum(rows).attr('fill', 'none').attr('stroke', 'var(--accent)').attr('stroke-width', 2).attr('stroke-linecap', 'round').attr('stroke-linejoin', 'round').attr('d', d3.line().x((r) => x(r.period)).y((r) => y(avg(r))));
+    const last = rows[rows.length - 1];
+    svg.append('circle').attr('cx', x(last.period)).attr('cy', y(avg(last))).attr('r', 3.5).attr('fill', 'var(--accent)');
+    svg.append('title').text(rows[0].label + ' to ' + last.label);
+  }
+
+  function render() {
+    if (state.tab === 'stations' && !state.station) { const f = stations.find(inGroup); if (f) state.station = f.station; }
+    const p = state.mapParam, s = std[p];
+    chips.querySelectorAll('.chip').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.param === p)));
+    document.querySelectorAll('[data-view]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.view === state.view)));
+    document.querySelectorAll('[data-group]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.group === state.group)));
+    const list = periodList(state.view);
+    if (!state.period || !periodsByView[state.view].has(state.period)) state.period = list[0].period;
+    sel.replaceChildren(...list.map((d) => new Option(d.label, d.period)));
+    sel.value = state.period;
+    computeCurrent();
+    const plabel = periodsByView[state.view].get(state.period).label + (state.view === 'month' ? '' : ' average');
+    for (const id of ['map-period', 'tiles-period', 'tb-month', 'st-month']) document.getElementById(id).textContent = plabel;
+    document.getElementById('tb-note').textContent = (state.view === 'month' ? 'Values as recorded.' : 'Each value is the average of the readings in the period (geometric mean for fecal coliform); hover for the count.') + ' Red values are outside the standard.';
+    renderTable();
+
+    // markers
+    for (const st of stations) {
+      if (!inGroup(st)) { map.removeLayer(markers[st.station]); continue; }
+      if (!map.hasLayer(markers[st.station])) markers[st.station].addTo(map);
+      const r = cur[st.station + '|' + p];
+      const status = statusOf(r);
+      const shape = st.type === 'Marine' ? 'dia' : 'cir';
+      const lab = showValues.checked && r ? '<span class="mkv">' + r.raw + '</span>' : '';
+      markers[st.station].setIcon(L.divIcon({className: '', html: '<div class="mkw"><div class="mk ' + shape + ' ' + cls(status) + (state.station === st.station ? ' sel' : '') + '"></div>' + lab + '</div>', iconSize: [18, 18], iconAnchor: [9, 9]}));
+      const tip = el('div', {}, el('div', {class: 'k', text: st.name + ' · ' + st.type.toLowerCase()}), el('div', {text: s.name + ': ' + (r ? r.raw + (s.unit ? ' ' + s.unit : '') + (r.n > 1 ? (p === 'fc' ? ' (geometric mean of ' : ' (average of ') + r.n + ')' : '') : 'no reading')}),
+        el('div', {class: 'k', text: status === 'none' ? (r ? 'No standard applies' : 'Not sampled') : status === 'outside' ? 'Outside the standard' : 'Within the standard'}));
+      markers[st.station].unbindTooltip().bindTooltip(tip, {className: 'tip', direction: 'top', offset: [0, -10]});
+    }
+
+    // ranked list
+    const rows = stations.filter(inGroup).map((st) => ({st, r: cur[st.station + '|' + p]}))
+      .sort((a, b) => (!a.r) - (!b.r) || (b.r ? b.r.value : 0) - (a.r ? a.r.value : 0));
+    const vals = rows.filter((d) => d.r).map((d) => d.r.value);
+    const lims = rows.flatMap((d) => limits(p, d.st.station)).filter((v) => v !== null);
+    const hi = Math.max(d3.max(vals) || 1, d3.max(lims) || 0);
+    const lo = Math.max(1e-3, Math.min(d3.min(vals.filter((v) => v > 0)) || 1, d3.min(lims.filter((v) => v > 0)) || hi));
+    const x = hi / lo > 100 ? d3.scaleLog([lo / 2, hi], [0, 100]).clamp(true) : d3.scaleLinear([0, hi], [0, 100]);
+    document.getElementById('rank').replaceChildren(...rows.map(({st, r}) => {
+      const track = el('span', {class: 'track'});
+      if (r) { const b = el('span', {class: 'bar ' + cls(statusOf(r))}); b.style.width = Math.max(1.5, x(r.value)) + '%'; track.append(b); }
+      for (const l of limits(p, st.station)) if (l !== null) { const m = el('span', {class: 'lim'}); m.style.left = x(l) + '%'; track.append(m); }
+      const b = el('button', {class: 'rrow', 'aria-pressed': String(state.station === st.station)}, el('span', {class: 'nm', text: st.name}), track, el('span', {class: 'val', text: r ? r.raw : 'no reading'}));
+      b.addEventListener('click', () => { state.station = st.station; showTab('stations'); });
+      return b;
+    }));
+
+    // station panel
+    const box = document.getElementById('station');
+    box.hidden = !state.station;
+    if (state.station) {
+      const st = stations.find((d) => d.station === state.station);
+      document.getElementById('st-name').textContent = st.name + ' · ' + st.type.toLowerCase() + ' station';
+      drawHistory(st.station, p);
+      document.getElementById('st-grid').replaceChildren(...PARAMS.map((q) => {
+        const r = cur[st.station + '|' + q], status = statusOf(r);
+        return el('div', {class: 'st-cell'}, el('span', {class: 'p', text: std[q].name + (std[q].unit ? ' · ' + std[q].unit : '')}), el('span', {class: 'v', text: r ? r.raw : '—'}),
+          el('span', {class: 's'}, el('i', {class: 'sw ' + cls(status)}), !r ? 'Not sampled' : status === 'none' ? 'No standard' : status === 'outside' ? 'Outside standard' : 'Within standard'));
+      }));
+    }
+
+    // tiles
+    for (const q of PARAMS) {
+      const t = tiles[q], g = stats.get(state.group + '|' + state.view + '|' + state.period + '|' + q);
+      t.t.setAttribute('aria-pressed', String(q === p));
+      t.mean.textContent = g ? fmt(avg(g)) : '—';
+      t.min.textContent = g ? fmt(g.min) : '—'; t.minSt.textContent = g ? stName[g.minSt] : 'No readings';
+      t.max.textContent = g ? fmt(g.max) : '—'; t.maxSt.textContent = g ? stName[g.maxSt] : 'No readings';
+      t.fail.textContent = g ? String(g.fail) : '—'; t.fail.classList.toggle('bad', !!g && g.fail > 0);
+      t.n.textContent = g ? String(g.checked) : '—';
+      const prevP = state.view === 'year' ? String(Number(state.period) - 1) : (Number(state.period.slice(0, 4)) - 1) + state.period.slice(4);
+      const prevInfo = periodsByView[state.view].get(prevP);
+      const gp = stats.get(state.group + '|' + state.view + '|' + prevP + '|' + q);
+      if (g && gp && avg(gp) > 0) {
+        const pct = (avg(g) - avg(gp)) / avg(gp) * 100;
+        const dir = q === 'do' ? 1 : (q === 'temperature' || q === 'ph') ? 0 : -1;
+        const flat = Math.abs(pct) < 0.5;
+        const c = flat || dir === 0 ? 'neu-c' : (pct > 0) === (dir > 0) ? 'good-c' : 'bad-c';
+        t.chg.replaceChildren(el('b', {class: c, text: flat ? '● no change' : (pct > 0 ? '▲ ' : '▼ ') + d3.format(',.0f')(Math.abs(pct)) + '%'}), ' vs ' + prevInfo.label + (c === 'good-c' ? ' (better)' : c === 'bad-c' ? ' (worse)' : ''));
+      } else t.chg.textContent = g ? 'No data for ' + (prevInfo ? prevInfo.label : 'the same period a year earlier') : '';
+      drawSpark(t.spark, q, state.view, state.period);
+    }
+    const plab = periodsByView[state.view].get(state.period).label + (state.view === 'month' ? '' : ' average');
+    if (state.tab === 'progress') drawProgress();
+    const stPick = document.getElementById('st-pick');
+    stPick.replaceChildren(...stations.filter(inGroup).map((d) => new Option(d.name, d.station)));
+    if (state.station) stPick.value = state.station;
+    const stParam = document.getElementById('st-param');
+    if (!stParam.options.length) stParam.append(...PARAMS.map((q) => new Option(std[q].name, q)));
+    stParam.value = state.mapParam;
+    document.getElementById('print-head').textContent = 'Ormoc Bay WQMA water quality · ' + TAB_NAMES[state.tab] + ' · ' + (state.tab === 'progress' ? 'Fecal coliform, latest ' + state.pw + ' samplings vs action plan baseline' : state.tab === 'compliance' ? 'Compliance by station and year' : std[p].name + ' · ' + plab) + ' · ' + GROUPS[state.group] + ' · printed ' + new Date().toLocaleDateString('en-PH', {year: 'numeric', month: 'long', day: 'numeric'}) + ' · masquezane.github.io/ormoc-bay-wqma';
+    const hash = 'p=' + state.mapParam + '&v=' + state.view + '&t=' + state.period + '&g=' + state.group + (state.station ? '&s=' + state.station : '') + '&tab=' + state.tab + (state.pw !== 12 ? '&w=' + state.pw : '');
+    try { history.replaceState(null, '', '#' + hash); } catch (e) {}
+  }
+  // Tabs
+  const TAB_NAMES = {overview: 'Overview', progress: 'Progress', stations: 'Stations', compliance: 'Compliance', data: 'Data'};
+  const HINTS = {overview: 'The map, ranking and tiles follow these choices.', progress: 'Progress always uses the latest samplings. Choose how many below.', stations: 'The values under the chart and the ringed dots follow the chosen period.', compliance: 'The heat map shows every year for the chosen stations.', data: 'The table follows these choices.'};
+  function applyTab() {
+    document.querySelectorAll('[data-panel]').forEach((sec) => { sec.hidden = sec.dataset.panel !== state.tab; });
+    document.querySelectorAll('.tab').forEach((b) => { const on = b.dataset.tab === state.tab; b.setAttribute('aria-selected', String(on)); b.tabIndex = on ? 0 : -1; });
+    document.querySelectorAll('.period-ctl').forEach((e) => { e.hidden = state.tab === 'progress' || state.tab === 'compliance'; });
+    document.getElementById('tb-hint').textContent = HINTS[state.tab];
+  }
+  function showTab(t) {
+    state.tab = t; applyTab(); render();
+    if (t === 'overview') map.invalidateSize();
+    const y0 = document.querySelector('header').getBoundingClientRect().bottom + window.scrollY;
+    if (window.scrollY > y0) window.scrollTo(0, y0);
+  }
+  document.querySelectorAll('.tab').forEach((b) => {
+    b.addEventListener('click', () => showTab(b.dataset.tab));
+    b.addEventListener('keydown', (e) => {
+      if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+      e.preventDefault();
+      const t = TABS[(TABS.indexOf(state.tab) + (e.key === 'ArrowRight' ? 1 : TABS.length - 1)) % TABS.length];
+      showTab(t); document.querySelector('.tab[data-tab="' + t + '"]').focus();
+    });
+  });
+  document.getElementById('st-pick').addEventListener('change', (e) => { state.station = e.target.value; render(); });
+  document.getElementById('st-param').addEventListener('change', (e) => { state.mapParam = e.target.value; render(); });
+  document.querySelectorAll('#pg-win .chip').forEach((b) => b.addEventListener('click', () => { state.pw = Number(b.dataset.w); render(); }));
+  document.getElementById('pg-open').addEventListener('click', () => { state.mapParam = 'fc'; showTab('stations'); });
+
+  // Progress: fecal coliform. Average of the latest samplings vs the baseline formalized in the WQMA action plan.
+  // The action plan baselines are arithmetic averages of past results minus the 200 standard, so the current value is an arithmetic average too.
+  const PLAN_BASE = {an_dn: 83947, an_up: 13552, mal_dn: 61390, mal_up: 19612, panilahan: 45331, pagsangahan: 55162, albuera_r: 36602, merida_r: 33021, albuera_c: 26216, don_felipe: 21281, filmag: 3737, merida_c: 6111, bantigue: 28007, ymca: 10105};
+  const amean = (a) => (a.length ? d3.mean(a) : null);
+  const fcSeries = {};
+  for (const st of stations) fcSeries[st.station] = readings.filter((r) => r.parameter === 'fc' && r.station === st.station && r.month).sort((a, b) => a.year - b.year || a.month - b.month);
+  const monLabel = (r) => MON[r.month - 1] + ' ' + r.year;
+  const pgCalc = (id, w) => {
+    const sr = fcSeries[id], last = sr.slice(-w);
+    const base = PLAN_BASE[id] || null, now = amean(last.map((r) => r.value));
+    return {sr, base, now, last, chg: base && now ? (now / base - 1) * 100 : null, ok: last.filter((r) => r.value <= 200).length};
+  };
+  const chgCls = (c) => (c <= -10 ? 'good-c' : c >= 10 ? 'bad-c' : 'neu-c');
+  const chgCol = (c) => (c <= -10 ? 'var(--ok)' : c >= 10 ? 'var(--bad)' : 'var(--na)');
+  const pct = (c) => (c > 0.5 ? '+' : c < -0.5 ? '−' : '') + d3.format(',.0f')(Math.abs(c)) + '%';
+  function drawProgress() {
+    const w = state.pw;
+    document.querySelectorAll('#pg-win .chip').forEach((b) => b.setAttribute('aria-pressed', String(Number(b.dataset.w) === w)));
+    const res = stations.filter(inGroup).map((st) => Object.assign({s: st}, pgCalc(st.station, w))).filter((d) => d.chg !== null);
+    const bx = document.getElementById('pg-bars'); bx.replaceChildren();
+    if (!res.length) { bx.append(el('p', {class: 'empty', text: 'No fecal coliform readings for these stations.'})); return; }
+    if (!res.some((d) => d.s.station === state.station)) state.station = res[0].s.station;
+    const BW = bx.clientWidth || 380, rowH = 28, top = 24, H = top + res.length * rowH + 4;
+    const lw = Math.min(200, Math.round(BW * 0.45)), vw = 48;
+    const x = d3.scaleLinear([Math.min(-50, d3.min(res, (d) => d.chg)), Math.max(50, d3.max(res, (d) => d.chg))], [lw, BW - vw]).nice();
+    const svg = d3.select(bx).append('svg').attr('width', '100%').attr('height', H).attr('viewBox', '0 0 ' + BW + ' ' + H).attr('role', 'img').attr('aria-label', 'Change in fecal coliform versus the action plan baseline, by station');
+    svg.append('g').attr('transform', 'translate(0,' + (top - 4) + ')').call(d3.axisTop(x).ticks(Math.max(2, Math.floor((BW - lw - vw) / 64))).tickFormat((v) => (v > 0 ? '+' : '') + v + '%').tickSizeOuter(0)).attr('font-size', null).attr('font-family', null).call((g) => g.select('.domain').remove());
+    const maxCh = Math.max(8, Math.floor(lw / 6.3));
+    res.forEach((d, i) => {
+      const yy = top + i * rowH, sel = d.s.station === state.station;
+      const pick = () => { state.station = d.s.station; render(); };
+      const g = svg.append('g').attr('class', 'bar-row').attr('tabindex', 0).attr('role', 'button').attr('aria-label', d.s.name + ': ' + pct(d.chg) + ' compared with baseline')
+        .on('click', pick).on('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pick(); } });
+      g.append('rect').attr('x', 0).attr('y', yy).attr('width', BW).attr('height', rowH).attr('rx', 4).attr('fill', sel ? 'var(--bg)' : 'transparent');
+      g.append('text').attr('class', 'nm' + (sel ? ' sel' : '')).attr('x', lw - 8).attr('y', yy + rowH / 2 + 4).attr('text-anchor', 'end').text(d.s.name.length > maxCh ? d.s.name.slice(0, maxCh - 1) + '…' : d.s.name);
+      g.append('rect').attr('x', Math.min(x(0), x(d.chg))).attr('y', yy + 7).attr('width', Math.max(2, Math.abs(x(d.chg) - x(0)))).attr('height', rowH - 14).attr('rx', 2).attr('fill', chgCol(d.chg)).attr('fill-opacity', sel ? 1 : 0.7);
+      g.append('text').attr('x', BW - 2).attr('y', yy + rowH / 2 + 4).attr('text-anchor', 'end').attr('class', sel ? 'sel' : null).text(pct(d.chg));
+      g.append('title').text(d.s.name + ': latest ' + d.last.length + ' samplings ' + fmt(d.now) + ' vs baseline ' + fmt(d.base) + ' (' + pct(d.chg) + ')');
+    });
+    svg.append('line').attr('x1', x(0)).attr('x2', x(0)).attr('y1', top - 4).attr('y2', H).attr('stroke', 'var(--muted)').attr('stroke-width', 1);
+
+    const d = res.find((r) => r.s.station === state.station);
+    document.getElementById('pg-name').textContent = d.s.name + ' · ' + d.s.type.toLowerCase() + ' station';
+    const cell = (label, value, sub, c) => el('div', {class: 'st-cell'}, el('span', {class: 'p', text: label}), el('span', {class: 'v' + (c ? ' ' + c : ''), text: value}), el('span', {class: 's', text: sub}));
+    document.getElementById('pg-kpi').replaceChildren(
+      cell('Action plan baseline', fmt(d.base), 'Set in the WQMA action plan'),
+      cell('Average, latest ' + d.last.length + ' samplings', fmt(d.now), monLabel(d.last[0]) + ' to ' + monLabel(d.last[d.last.length - 1])),
+      cell('Change vs baseline', pct(d.chg), d.chg <= -10 ? 'Lower: better' : d.chg >= 10 ? 'Higher: worse' : 'About the same', chgCls(d.chg)),
+      cell('At or below 200', d.ok + ' of ' + d.last.length, 'Samplings meeting the standard'));
+
+    const cb = document.getElementById('pg-chart'); cb.replaceChildren();
+    const sr = d.sr, i0 = Math.max(0, sr.findIndex((r) => r.year >= 2022));
+    const pts = sr.slice(i0).map((r, k) => ({r, i: i0 + k, d: new Date(Date.UTC(r.year, r.month - 1, 15))}));
+    const roll = pts.filter((p) => p.i >= w - 1).map((p) => ({d: p.d, v: amean(sr.slice(p.i - w + 1, p.i + 1).map((r) => r.value))}));
+    const CW = cb.clientWidth || 560, CH = 260, m = {t: 14, r: 12, b: 26, l: 44};
+    const top2 = Math.max(d3.max(pts, (p) => p.r.value), d.base, 1000) * 1.6;
+    const y = d3.scaleLog([10, top2], [CH - m.b, m.t]).clamp(true);
+    const yv = (v) => Math.max(v, 10);
+    const x2 = d3.scaleUtc([pts[0].d, pts[pts.length - 1].d], [m.l, CW - m.r]);
+    const sv = d3.select(cb).append('svg').attr('width', '100%').attr('height', CH).attr('viewBox', '0 0 ' + CW + ' ' + CH).attr('role', 'img').attr('aria-label', 'Fecal coliform at ' + d.s.name + ' with rolling average, action plan baseline and standard');
+    const wx = Math.max(m.l, x2(new Date(Date.UTC(d.last[0].year, d.last[0].month - 1, 1))));
+    sv.append('rect').attr('x', wx).attr('y', m.t).attr('width', Math.max(0, CW - m.r - wx)).attr('height', CH - m.t - m.b).attr('fill', 'var(--accent)').attr('fill-opacity', 0.1);
+    const ticks = [10, 100, 1000, 1e4, 1e5, 1e6, 1e7].filter((v) => v <= top2);
+    sv.append('g').attr('transform', 'translate(' + m.l + ',0)').call(d3.axisLeft(y).tickValues(ticks).tickFormat(d3.format('~s'))).attr('font-size', null).attr('font-family', null)
+      .call((g) => g.selectAll('.tick line').clone().attr('x2', CW - m.l - m.r).attr('stroke', 'var(--line)').attr('stroke-opacity', 0.6));
+    sv.append('g').attr('transform', 'translate(0,' + (CH - m.b) + ')').call(d3.axisBottom(x2).ticks(d3.utcYear.every(1)).tickFormat(d3.utcFormat('%Y'))).attr('font-size', null).attr('font-family', null);
+    const hline = (v, col, dash, label, below) => {
+      sv.append('line').attr('x1', m.l).attr('x2', CW - m.r).attr('y1', y(v)).attr('y2', y(v)).attr('stroke', col).attr('stroke-width', 2).attr('stroke-dasharray', dash);
+      sv.append('text').attr('class', 'lbl').attr('x', m.l + 4).attr('y', y(v) + (below ? 13 : -5)).text(label);
+    };
+    hline(200, 'var(--ok)', '2 4', 'Standard 200', true);
+    hline(d.base, '#d08a2e', '7 4', 'Action plan baseline ' + fmt(d.base), false);
+    sv.append('g').selectAll('circle').data(pts).join('circle').attr('cx', (p) => x2(p.d)).attr('cy', (p) => y(yv(p.r.value))).attr('r', 3.5).attr('fill', (p) => (p.r.value <= 200 ? 'var(--ok)' : 'var(--muted)')).attr('fill-opacity', 0.75);
+    sv.append('path').datum(roll).attr('fill', 'none').attr('stroke', 'var(--accent)').attr('stroke-width', 2.5).attr('stroke-linejoin', 'round').attr('stroke-linecap', 'round').attr('d', d3.line().x((p) => x2(p.d)).y((p) => y(p.v)));
+    const lastR = roll[roll.length - 1];
+    if (lastR) sv.append('circle').attr('cx', x2(lastR.d)).attr('cy', y(lastR.v)).attr('r', 5).attr('fill', 'var(--accent)').attr('stroke', 'var(--panel)').attr('stroke-width', 2);
+    const tip = el('div', {class: 'hist-tip'}); tip.hidden = true; cb.append(tip);
+    const ring = sv.append('circle').attr('r', 6).attr('fill', 'none').attr('stroke', 'var(--fg)').attr('stroke-width', 1.5).style('display', 'none');
+    const rollAt = new Map(roll.map((p) => [+p.d, p.v]));
+    sv.append('rect').attr('x', m.l).attr('y', m.t).attr('width', CW - m.l - m.r).attr('height', CH - m.t - m.b).attr('fill', 'transparent')
+      .on('mousemove', (e) => {
+        const [mx] = d3.pointer(e), t = x2.invert(mx);
+        let bp = pts[0]; for (const p of pts) if (Math.abs(p.d - t) < Math.abs(bp.d - t)) bp = p;
+        const cx = x2(bp.d), cy = y(yv(bp.r.value)), rv = rollAt.get(+bp.d);
+        ring.style('display', null).attr('cx', cx).attr('cy', cy);
+        tip.replaceChildren(el('div', {class: 'k', text: monLabel(bp.r)}), el('div', {text: bp.r.raw + ' MPN/100 mL'}), ...(rv ? [el('div', {class: 'k', text: 'Rolling average: ' + fmt(rv)})] : []));
+        tip.hidden = false;
+        const bw = cb.clientWidth; let lx = cx * bw / CW + 12; if (lx > bw - 200) lx = cx * bw / CW - 200;
+        tip.style.left = lx + 'px'; tip.style.top = Math.max(0, cy - 10) + 'px';
+      })
+      .on('mouseleave', () => { tip.hidden = true; ring.style('display', 'none'); });
+    document.getElementById('pg-note').textContent = 'Dots are monthly samplings since 2022 (values under 10 are drawn at 10). The blue line is the average of the ' + w + ' samplings up to each point. Baselines are the values formalized in the WQMA action plan (average of past results minus the 200 standard), so the current figure is also a simple average. One very high sampling can raise it a lot, especially over only 3 samplings. The shaded area marks the latest ' + w + ' samplings used for the figures above. Changes within 10% of the baseline are shown as about the same.';
+  }
+
+  applyTab();
+  render();
+  let rt; window.addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(render, 200); });
+})();
+</script>
+</body>
+</html>
