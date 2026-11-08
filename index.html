@@ -326,7 +326,7 @@
   <section class="card" id="progress" data-panel="progress" hidden>
     <div class="head">
       <h2>Fecal coliform progress</h2>
-      <p class="note">Is each station getting better or worse than its recent normal? This compares the geometric mean of the latest samplings with the station's own 2023–2025 baseline. The DAO standard of 200 MPN/100 mL remains the long-term goal.</p>
+      <p class="note">Is each station getting better or worse than its recent normal? This compares the average of the latest samplings with each station's baseline as formalized in the WQMA action plan. The DAO standard of 200 MPN/100 mL remains the long-term goal.</p>
     </div>
     <div class="st-pick pg-win"><span class="tb-label">Compare the latest</span><div class="chips" role="group" aria-label="Number of latest samplings" id="pg-win"><button class="chip" type="button" data-w="3">3 samplings</button><button class="chip" type="button" data-w="6">6 samplings</button><button class="chip" type="button" data-w="12">12 samplings</button></div><span class="note">12 samplings (about a year) evens out rainy and dry months. 3 reacts fastest but is noisier.</span></div>
     <div class="pg-grid">
@@ -338,7 +338,7 @@
       <div class="side">
         <div class="station-head"><h3 id="pg-name"></h3><button class="x pg-open" id="pg-open" type="button">Full history in Stations tab</button></div>
         <div class="st-grid" id="pg-kpi"></div>
-        <div class="legend pg-legend"><span><i class="sw" style="background: var(--muted)"></i>Each sampling</span><span><i class="sw ok-bg"></i>At or below 200</span><span><i class="ln"></i>Rolling geometric mean</span><span><i class="ln base"></i>Baseline 2023–2025</span><span><i class="ln std"></i>Standard 200</span><span><i class="win"></i>Latest samplings used</span></div>
+        <div class="legend pg-legend"><span><i class="sw" style="background: var(--muted)"></i>Each sampling</span><span><i class="sw ok-bg"></i>At or below 200</span><span><i class="ln"></i>Rolling average</span><span><i class="ln base"></i>Action plan baseline</span><span><i class="ln std"></i>Standard 200</span><span><i class="win"></i>Latest samplings used</span></div>
         <div class="pg-chart" id="pg-chart"></div>
         <p class="note" id="pg-note"></p>
       </div>
@@ -957,7 +957,7 @@
     const stParam = document.getElementById('st-param');
     if (!stParam.options.length) stParam.append(...PARAMS.map((q) => new Option(std[q].name, q)));
     stParam.value = state.mapParam;
-    document.getElementById('print-head').textContent = 'Ormoc Bay WQMA water quality · ' + TAB_NAMES[state.tab] + ' · ' + (state.tab === 'progress' ? 'Fecal coliform, latest ' + state.pw + ' samplings vs 2023–2025 baseline' : state.tab === 'compliance' ? 'Compliance by station and year' : std[p].name + ' · ' + plab) + ' · ' + GROUPS[state.group] + ' · printed ' + new Date().toLocaleDateString('en-PH', {year: 'numeric', month: 'long', day: 'numeric'}) + ' · masquezane.github.io/ormoc-bay-wqma';
+    document.getElementById('print-head').textContent = 'Ormoc Bay WQMA water quality · ' + TAB_NAMES[state.tab] + ' · ' + (state.tab === 'progress' ? 'Fecal coliform, latest ' + state.pw + ' samplings vs action plan baseline' : state.tab === 'compliance' ? 'Compliance by station and year' : std[p].name + ' · ' + plab) + ' · ' + GROUPS[state.group] + ' · printed ' + new Date().toLocaleDateString('en-PH', {year: 'numeric', month: 'long', day: 'numeric'}) + ' · masquezane.github.io/ormoc-bay-wqma';
     const hash = 'p=' + state.mapParam + '&v=' + state.view + '&t=' + state.period + '&g=' + state.group + (state.station ? '&s=' + state.station : '') + '&tab=' + state.tab + (state.pw !== 12 ? '&w=' + state.pw : '');
     try { history.replaceState(null, '', '#' + hash); } catch (e) {}
   }
@@ -990,15 +990,17 @@
   document.querySelectorAll('#pg-win .chip').forEach((b) => b.addEventListener('click', () => { state.pw = Number(b.dataset.w); render(); }));
   document.getElementById('pg-open').addEventListener('click', () => { state.mapParam = 'fc'; showTab('stations'); });
 
-  // Progress: fecal coliform. Geometric mean of the latest samplings vs the station's 2023-2025 baseline (also a geometric mean).
-  const gmean = (a) => (a.length ? Math.exp(d3.mean(a, flog)) : null);
+  // Progress: fecal coliform. Average of the latest samplings vs the baseline formalized in the WQMA action plan.
+  // The action plan baselines are arithmetic averages of past results minus the 200 standard, so the current value is an arithmetic average too.
+  const PLAN_BASE = {an_dn: 83947, an_up: 13552, mal_dn: 61390, mal_up: 19612, panilahan: 45331, pagsangahan: 55162, albuera_r: 36602, merida_r: 33021, albuera_c: 26216, don_felipe: 21281, filmag: 3737, merida_c: 6111, bantigue: 28007, ymca: 10105};
+  const amean = (a) => (a.length ? d3.mean(a) : null);
   const fcSeries = {};
   for (const st of stations) fcSeries[st.station] = readings.filter((r) => r.parameter === 'fc' && r.station === st.station && r.month).sort((a, b) => a.year - b.year || a.month - b.month);
   const monLabel = (r) => MON[r.month - 1] + ' ' + r.year;
   const pgCalc = (id, w) => {
-    const sr = fcSeries[id], basePts = sr.filter((r) => r.year >= 2023 && r.year <= 2025), last = sr.slice(-w);
-    const base = gmean(basePts.map((r) => r.value)), now = gmean(last.map((r) => r.value));
-    return {sr, base, nBase: basePts.length, now, last, chg: base && now ? (now / base - 1) * 100 : null, ok: last.filter((r) => r.value <= 200).length};
+    const sr = fcSeries[id], last = sr.slice(-w);
+    const base = PLAN_BASE[id] || null, now = amean(last.map((r) => r.value));
+    return {sr, base, now, last, chg: base && now ? (now / base - 1) * 100 : null, ok: last.filter((r) => r.value <= 200).length};
   };
   const chgCls = (c) => (c <= -10 ? 'good-c' : c >= 10 ? 'bad-c' : 'neu-c');
   const chgCol = (c) => (c <= -10 ? 'var(--ok)' : c >= 10 ? 'var(--bad)' : 'var(--na)');
@@ -1013,7 +1015,7 @@
     const BW = bx.clientWidth || 380, rowH = 28, top = 24, H = top + res.length * rowH + 4;
     const lw = Math.min(200, Math.round(BW * 0.45)), vw = 48;
     const x = d3.scaleLinear([Math.min(-50, d3.min(res, (d) => d.chg)), Math.max(50, d3.max(res, (d) => d.chg))], [lw, BW - vw]).nice();
-    const svg = d3.select(bx).append('svg').attr('width', '100%').attr('height', H).attr('viewBox', '0 0 ' + BW + ' ' + H).attr('role', 'img').attr('aria-label', 'Change in fecal coliform versus the 2023–2025 baseline, by station');
+    const svg = d3.select(bx).append('svg').attr('width', '100%').attr('height', H).attr('viewBox', '0 0 ' + BW + ' ' + H).attr('role', 'img').attr('aria-label', 'Change in fecal coliform versus the action plan baseline, by station');
     svg.append('g').attr('transform', 'translate(0,' + (top - 4) + ')').call(d3.axisTop(x).ticks(Math.max(2, Math.floor((BW - lw - vw) / 64))).tickFormat((v) => (v > 0 ? '+' : '') + v + '%').tickSizeOuter(0)).attr('font-size', null).attr('font-family', null).call((g) => g.select('.domain').remove());
     const maxCh = Math.max(8, Math.floor(lw / 6.3));
     res.forEach((d, i) => {
@@ -1033,21 +1035,21 @@
     document.getElementById('pg-name').textContent = d.s.name + ' · ' + d.s.type.toLowerCase() + ' station';
     const cell = (label, value, sub, c) => el('div', {class: 'st-cell'}, el('span', {class: 'p', text: label}), el('span', {class: 'v' + (c ? ' ' + c : ''), text: value}), el('span', {class: 's', text: sub}));
     document.getElementById('pg-kpi').replaceChildren(
-      cell('Baseline 2023–2025', fmt(d.base), 'Geometric mean of ' + d.nBase + ' samplings'),
-      cell('Latest ' + d.last.length + ' samplings', fmt(d.now), monLabel(d.last[0]) + ' to ' + monLabel(d.last[d.last.length - 1])),
+      cell('Action plan baseline', fmt(d.base), 'Set in the WQMA action plan'),
+      cell('Average, latest ' + d.last.length + ' samplings', fmt(d.now), monLabel(d.last[0]) + ' to ' + monLabel(d.last[d.last.length - 1])),
       cell('Change vs baseline', pct(d.chg), d.chg <= -10 ? 'Lower: better' : d.chg >= 10 ? 'Higher: worse' : 'About the same', chgCls(d.chg)),
       cell('At or below 200', d.ok + ' of ' + d.last.length, 'Samplings meeting the standard'));
 
     const cb = document.getElementById('pg-chart'); cb.replaceChildren();
     const sr = d.sr, i0 = Math.max(0, sr.findIndex((r) => r.year >= 2022));
     const pts = sr.slice(i0).map((r, k) => ({r, i: i0 + k, d: new Date(Date.UTC(r.year, r.month - 1, 15))}));
-    const roll = pts.filter((p) => p.i >= w - 1).map((p) => ({d: p.d, v: gmean(sr.slice(p.i - w + 1, p.i + 1).map((r) => r.value))}));
+    const roll = pts.filter((p) => p.i >= w - 1).map((p) => ({d: p.d, v: amean(sr.slice(p.i - w + 1, p.i + 1).map((r) => r.value))}));
     const CW = cb.clientWidth || 560, CH = 260, m = {t: 14, r: 12, b: 26, l: 44};
     const top2 = Math.max(d3.max(pts, (p) => p.r.value), d.base, 1000) * 1.6;
     const y = d3.scaleLog([10, top2], [CH - m.b, m.t]).clamp(true);
     const yv = (v) => Math.max(v, 10);
     const x2 = d3.scaleUtc([pts[0].d, pts[pts.length - 1].d], [m.l, CW - m.r]);
-    const sv = d3.select(cb).append('svg').attr('width', '100%').attr('height', CH).attr('viewBox', '0 0 ' + CW + ' ' + CH).attr('role', 'img').attr('aria-label', 'Fecal coliform at ' + d.s.name + ' with rolling geometric mean, baseline and standard');
+    const sv = d3.select(cb).append('svg').attr('width', '100%').attr('height', CH).attr('viewBox', '0 0 ' + CW + ' ' + CH).attr('role', 'img').attr('aria-label', 'Fecal coliform at ' + d.s.name + ' with rolling average, action plan baseline and standard');
     const wx = Math.max(m.l, x2(new Date(Date.UTC(d.last[0].year, d.last[0].month - 1, 1))));
     sv.append('rect').attr('x', wx).attr('y', m.t).attr('width', Math.max(0, CW - m.r - wx)).attr('height', CH - m.t - m.b).attr('fill', 'var(--accent)').attr('fill-opacity', 0.1);
     const ticks = [10, 100, 1000, 1e4, 1e5, 1e6, 1e7].filter((v) => v <= top2);
@@ -1059,7 +1061,7 @@
       sv.append('text').attr('class', 'lbl').attr('x', m.l + 4).attr('y', y(v) + (below ? 13 : -5)).text(label);
     };
     hline(200, 'var(--ok)', '2 4', 'Standard 200', true);
-    hline(d.base, '#d08a2e', '7 4', 'Baseline ' + fmt(d.base), false);
+    hline(d.base, '#d08a2e', '7 4', 'Action plan baseline ' + fmt(d.base), false);
     sv.append('g').selectAll('circle').data(pts).join('circle').attr('cx', (p) => x2(p.d)).attr('cy', (p) => y(yv(p.r.value))).attr('r', 3.5).attr('fill', (p) => (p.r.value <= 200 ? 'var(--ok)' : 'var(--muted)')).attr('fill-opacity', 0.75);
     sv.append('path').datum(roll).attr('fill', 'none').attr('stroke', 'var(--accent)').attr('stroke-width', 2.5).attr('stroke-linejoin', 'round').attr('stroke-linecap', 'round').attr('d', d3.line().x((p) => x2(p.d)).y((p) => y(p.v)));
     const lastR = roll[roll.length - 1];
@@ -1073,13 +1075,13 @@
         let bp = pts[0]; for (const p of pts) if (Math.abs(p.d - t) < Math.abs(bp.d - t)) bp = p;
         const cx = x2(bp.d), cy = y(yv(bp.r.value)), rv = rollAt.get(+bp.d);
         ring.style('display', null).attr('cx', cx).attr('cy', cy);
-        tip.replaceChildren(el('div', {class: 'k', text: monLabel(bp.r)}), el('div', {text: bp.r.raw + ' MPN/100 mL'}), ...(rv ? [el('div', {class: 'k', text: 'Rolling geometric mean: ' + fmt(rv)})] : []));
+        tip.replaceChildren(el('div', {class: 'k', text: monLabel(bp.r)}), el('div', {text: bp.r.raw + ' MPN/100 mL'}), ...(rv ? [el('div', {class: 'k', text: 'Rolling average: ' + fmt(rv)})] : []));
         tip.hidden = false;
         const bw = cb.clientWidth; let lx = cx * bw / CW + 12; if (lx > bw - 200) lx = cx * bw / CW - 200;
         tip.style.left = lx + 'px'; tip.style.top = Math.max(0, cy - 10) + 'px';
       })
       .on('mouseleave', () => { tip.hidden = true; ring.style('display', 'none'); });
-    document.getElementById('pg-note').textContent = 'Dots are monthly samplings since 2022 (values under 10 are drawn at 10). The blue line is the geometric mean of the ' + w + ' samplings up to each point, so a single spike after heavy rain moves it only a little. The shaded area marks the latest ' + w + ' samplings used for the figures above. Changes within 10% of the baseline are shown as about the same. Bacteria counts vary a lot, so treat changes over only 3 samplings with caution.';
+    document.getElementById('pg-note').textContent = 'Dots are monthly samplings since 2022 (values under 10 are drawn at 10). The blue line is the average of the ' + w + ' samplings up to each point. Baselines are the values formalized in the WQMA action plan (average of past results minus the 200 standard), so the current figure is also a simple average. One very high sampling can raise it a lot, especially over only 3 samplings. The shaded area marks the latest ' + w + ' samplings used for the figures above. Changes within 10% of the baseline are shown as about the same.';
   }
 
   applyTab();
